@@ -175,6 +175,26 @@ def handle_applications():
             "date": a.date
         })
     return jsonify(output), 200
-
+# --- NUEVA RUTA: ACTUALIZAR ESTADO (APROBAR/RECHAZAR) ---
+@app.route('/api/applications/<int:app_id>', methods=['PUT'])
+@jwt_required()
+def update_application_status(app_id):
+    try:
+        data = request.json
+        new_status = data.get('status') # Esperamos "Aprobado" o "Rechazado"
+        
+        # Buscar la postulación por ID
+        application = Application.query.get(app_id)
+        
+        if not application:
+            return jsonify({'error': 'Postulación no encontrada'}), 404
+            
+        # Actualizar el estado en la BD
+        application.status = new_status
+        db.session.commit()
+        
+        return jsonify({'message': f'Estado actualizado a {new_status}', 'id': app_id}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
