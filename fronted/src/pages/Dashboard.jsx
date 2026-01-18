@@ -51,7 +51,7 @@ const StatCard = ({ icon: Icon, title, value, colorBg, colorText }) => (
 const ApplicationCard = ({ title, subtitle, status, date, id }) => {
   const statusColors = {
     Pendiente: 'bg-yellow-100 text-yellow-700',
-    Aceptado: 'bg-green-100 text-green-700',
+    Aprobado: 'bg-green-100 text-green-700',
     Rechazado: 'bg-red-100 text-red-700',
   };
   const statusColor = statusColors[status] || 'bg-slate-100 text-slate-700';
