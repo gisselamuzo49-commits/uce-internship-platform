@@ -7,14 +7,14 @@ import {
   Calendar,
   Briefcase,
   Loader,
+  FileText,
+  AlertCircle,
 } from 'lucide-react';
 
 const ApplicationsAdmin = () => {
   const { authFetch } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Estado para saber qué botón está "pensando" (loading)
   const [processingId, setProcessingId] = useState(null);
 
   useEffect(() => {
@@ -26,19 +26,17 @@ const ApplicationsAdmin = () => {
       const res = await authFetch('http://localhost:5001/api/applications');
       if (res.ok) {
         const data = await res.json();
-        // Mostrar las más recientes primero
         setApplications(data.reverse());
       }
     } catch (error) {
-      console.error('Error cargando datos:', error);
+      console.error('Error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- FUNCIÓN QUE ACTIVA LOS BOTONES ---
   const handleStatusChange = async (appId, newStatus) => {
-    setProcessingId(appId); // Activar spinner de carga
+    setProcessingId(appId);
     try {
       const res = await authFetch(
         `http://localhost:5001/api/applications/${appId}`,
@@ -50,27 +48,42 @@ const ApplicationsAdmin = () => {
       );
 
       if (res.ok) {
-        // Actualizar la interfaz INMEDIATAMENTE sin recargar la página
         setApplications((prevApps) =>
           prevApps.map((app) =>
             app.id === appId ? { ...app, status: newStatus } : app
           )
         );
-      } else {
-        alert('No se pudo actualizar el estado.');
       }
     } catch (error) {
-      console.error('Error de conexión:', error);
-      alert('Error de conexión con el servidor.');
+      console.error(error);
     } finally {
-      setProcessingId(null); // Desactivar spinner
+      setProcessingId(null);
+    }
+  };
+
+  // --- NUEVA FUNCIÓN INTELIGENTE PARA VER CV ---
+  const handleViewCV = async (studentId) => {
+    const url = `http://localhost:5001/api/cv/${studentId}`;
+    try {
+      // 1. Preguntamos al servidor si el archivo existe (HEAD request)
+      const res = await fetch(url, { method: 'HEAD' });
+
+      if (res.ok) {
+        // 2. Si existe, lo abrimos en nueva pestaña
+        window.open(url, '_blank');
+      } else {
+        // 3. Si no existe (404), mostramos alerta bonita
+        alert('⚠️ Este estudiante aún no ha cargado su Hoja de Vida.');
+      }
+    } catch (error) {
+      alert('Error al verificar el archivo.');
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto p-8">
       <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-8">
-        Gestionar Postulaciones
+        Gestión de Postulaciones
       </h1>
 
       {loading ? (
@@ -80,7 +93,7 @@ const ApplicationsAdmin = () => {
       ) : applications.length === 0 ? (
         <div className="p-12 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
           <p className="text-slate-400 font-bold">
-            No hay postulaciones pendientes.
+            No hay postulaciones registradas.
           </p>
         </div>
       ) : (
@@ -88,10 +101,9 @@ const ApplicationsAdmin = () => {
           {applications.map((app) => (
             <div
               key={app.id}
-              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:shadow-md"
+              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:shadow-md transition-all"
             >
-              {/* Info del Candidato */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-1">
                 <div className="h-14 w-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold">
                   <User size={24} />
                 </div>
@@ -99,9 +111,9 @@ const ApplicationsAdmin = () => {
                   <h3 className="font-bold text-slate-800 text-lg">
                     {app.opportunity_title}
                   </h3>
-                  <div className="flex gap-4 text-xs font-bold text-slate-400 uppercase mt-1">
+                  <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-400 uppercase mt-1">
                     <span className="flex items-center gap-1">
-                      <Briefcase size={12} /> ID Est: {app.student_id}
+                      <Briefcase size={12} /> ID: {app.student_id}
                     </span>
                     <span className="flex items-center gap-1">
                       <Calendar size={12} /> {app.date}
@@ -110,9 +122,18 @@ const ApplicationsAdmin = () => {
                 </div>
               </div>
 
-              {/* LÓGICA DE ESTADO Y BOTONES */}
-              <div className="flex items-center gap-6">
-                {/* Etiqueta de Estado (Cambia de color según estado) */}
+              <div className="flex items-center gap-4 border-l border-slate-100 pl-4">
+                {/* --- BOTÓN MEJORADO --- */}
+                {/* En lugar de <a> usamos un <button> con lógica */}
+                <button
+                  onClick={() => handleViewCV(app.student_id)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition border border-blue-100"
+                  title="Ver Hoja de Vida"
+                >
+                  <FileText size={18} />
+                  <span className="hidden sm:inline">Ver CV</span>
+                </button>
+
                 <div
                   className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider
                     ${app.status === 'Pendiente' ? 'bg-yellow-50 text-yellow-600' : ''}
@@ -123,37 +144,32 @@ const ApplicationsAdmin = () => {
                   {app.status}
                 </div>
 
-                {/* CONTROLES (Solo aparecen si está procesando o si puedes cambiarlo) */}
                 {processingId === app.id ? (
-                  <Loader size={24} className="animate-spin text-blue-500" />
+                  <Loader size={20} className="animate-spin text-slate-400" />
                 ) : (
                   <div className="flex gap-2">
-                    {/* Botón APROBAR (Check) */}
                     <button
                       onClick={() => handleStatusChange(app.id, 'Aprobado')}
-                      className={`p-2 rounded-full transition-all border ${
+                      className={`p-2 rounded-full transition-all ${
                         app.status === 'Aprobado'
-                          ? 'bg-emerald-100 text-emerald-600 border-emerald-200 opacity-50 cursor-not-allowed'
-                          : 'bg-white border-slate-200 text-slate-300 hover:text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50'
+                          ? 'opacity-20 cursor-default'
+                          : 'hover:bg-emerald-50 text-slate-300 hover:text-emerald-600'
                       }`}
                       disabled={app.status === 'Aprobado'}
-                      title="Aprobar"
                     >
-                      <CheckCircle size={24} strokeWidth={2.5} />
+                      <CheckCircle size={24} />
                     </button>
 
-                    {/* Botón RECHAZAR (X) */}
                     <button
                       onClick={() => handleStatusChange(app.id, 'Rechazado')}
-                      className={`p-2 rounded-full transition-all border ${
+                      className={`p-2 rounded-full transition-all ${
                         app.status === 'Rechazado'
-                          ? 'bg-rose-100 text-rose-600 border-rose-200 opacity-50 cursor-not-allowed'
-                          : 'bg-white border-slate-200 text-slate-300 hover:text-rose-500 hover:border-rose-500 hover:bg-rose-50'
+                          ? 'opacity-20 cursor-default'
+                          : 'hover:bg-rose-50 text-slate-300 hover:text-rose-600'
                       }`}
                       disabled={app.status === 'Rechazado'}
-                      title="Rechazar"
                     >
-                      <XCircle size={24} strokeWidth={2.5} />
+                      <XCircle size={24} />
                     </button>
                   </div>
                 )}

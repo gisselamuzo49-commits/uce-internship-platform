@@ -4,17 +4,23 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
-CORS(app)
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN CRÍTICA ---
+# CORS: Permitimos todas las conexiones para evitar bloqueos entre Frontend y Backend
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Base de Datos PostgreSQL (Cadena de conexión Docker)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://uce_user:uce_password@uce_postgres:5432/uce_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'super-secret-key'
 
-# Configuración de carpeta para CVs
+# JWT (Seguridad de Tokens)
+app.config['JWT_SECRET_KEY'] = 'clave-super-secreta-uce-2024' 
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1) # El token dura 1 hora
+
+# Carpeta de Archivos (CVs)
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -23,7 +29,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
-# --- MODELOS ---
+# ==========================================
+# MODELOS (TABLAS DE BASE DE DATOS)
+# ==========================================
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -32,12 +41,7 @@ class User(db.Model):
     role = db.Column(db.String(20), default='student')
 
     def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'email': self.email,
-            'role': self.role
-        }
+        return {'id': self.id, 'name': self.name, 'email': self.email, 'role': self.role}
 
 class Opportunity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -48,10 +52,10 @@ class Opportunity(db.Model):
 
     def to_dict(self):
         return {
-            'id': self.id,
-            'title': self.title,
-            'company': self.company,
-            'description': self.description,
+            'id': self.id, 
+            'title': self.title, 
+            'company': self.company, 
+            'description': self.description, 
             'location': self.location
         }
 
@@ -64,14 +68,18 @@ class Application(db.Model):
 
     def to_dict(self):
         return {
-            'id': self.id,
-            'student_id': self.student_id,
-            'opportunity_title': self.opportunity_title,
-            'status': self.status,
+            'id': self.id, 
+            'student_id': self.student_id, 
+            'opportunity_title': self.opportunity_title, 
+            'status': self.status, 
             'date': self.date
         }
 
-# --- RUTAS DE AUTENTICACIÓN ---
+# ==========================================
+# RUTAS (ENDPOINTS)
+# ==========================================
+
+# 1. REGISTRO
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
@@ -89,20 +97,24 @@ def register():
     db.session.commit()
     return jsonify({'message': 'Usuario creado'}), 201
 
+# 2. LOGIN (CON CORRECCIÓN DE ID)
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
     
     if user and check_password_hash(user.password, data['password']):
-        access_token = create_access_token(identity=user.id)
+        # IMPORTANTE: Convertimos el ID a string para evitar errores 422
+        access_token = create_access_token(identity=str(user.id))
+        
+        # Devolvemos 'token' para que coincida con el Frontend
         return jsonify({'token': access_token, 'user': user.to_dict()}), 200
     
     return jsonify({'error': 'Credenciales inválidas'}), 401
 
-# --- RUTAS PRINCIPALES ---
+# 3. OPORTUNIDADES (ESTA FALTABA)
 @app.route('/api/opportunities', methods=['GET', 'POST'])
-@jwt_required()
+# @jwt_required() <-- Descomentar si quieres proteger esta ruta
 def opportunities():
     if request.method == 'POST':
         data = request.json
@@ -116,9 +128,11 @@ def opportunities():
         db.session.commit()
         return jsonify({'message': 'Oportunidad creada'}), 201
     
+    # GET: Listar todas
     ops = Opportunity.query.all()
     return jsonify([op.to_dict() for op in ops]), 200
 
+# 4. POSTULACIONES (APLICACIONES)
 @app.route('/api/applications', methods=['GET', 'POST'])
 @jwt_required()
 def applications():
@@ -126,8 +140,9 @@ def applications():
 
     if request.method == 'POST':
         data = request.json
+        # Convertimos de nuevo a int para la BD
         new_app = Application(
-            student_id=current_user_id,
+            student_id=int(current_user_id), 
             opportunity_title=data['opportunity_title']
         )
         db.session.add(new_app)
@@ -137,22 +152,20 @@ def applications():
     apps = Application.query.all()
     return jsonify([app.to_dict() for app in apps]), 200
 
-# Ruta para que el Admin apruebe/rechace
+# 5. ACTUALIZAR ESTADO (ADMIN)
 @app.route('/api/applications/<int:app_id>', methods=['PUT'])
 @jwt_required()
 def update_application_status(app_id):
     data = request.json
-    new_status = data.get('status')
-    
     application = Application.query.get(app_id)
     if not application:
         return jsonify({'error': 'No encontrada'}), 404
         
-    application.status = new_status
+    application.status = data.get('status')
     db.session.commit()
     return jsonify({'message': 'Estado actualizado'}), 200
 
-# --- RUTAS DE CV (ARCHIVOS) ---
+# 6. SUBIR CV
 @app.route('/api/upload-cv', methods=['POST'])
 @jwt_required()
 def upload_cv():
@@ -165,12 +178,12 @@ def upload_cv():
     if file.filename == '':
         return jsonify({'error': 'Nombre de archivo vacío'}), 400
 
-    # Guardamos siempre con el ID del usuario: cv_1.pdf, cv_25.pdf
     filename = f"cv_{current_user_id}.pdf"
     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
     
     return jsonify({'message': 'CV guardado correctamente'}), 200
 
+# 7. VER/DESCARGAR CV
 @app.route('/api/cv/<int:user_id>', methods=['GET'])
 def get_cv(user_id):
     filename = f"cv_{user_id}.pdf"
@@ -179,8 +192,11 @@ def get_cv(user_id):
     except FileNotFoundError:
         return jsonify({'error': 'CV no encontrado'}), 404
 
-# --- INICIALIZAR ---
+# ==========================================
+# INICIO DE LA APP
+# ==========================================
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+    # Ejecutamos en el puerto 5001
     app.run(host='0.0.0.0', port=5001, debug=True)

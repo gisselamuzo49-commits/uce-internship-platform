@@ -1,22 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import {
-  MapPin,
-  Clock,
-  DollarSign,
-  Bookmark,
-  Briefcase,
-  Search,
-  Filter,
-  ChevronRight,
-} from 'lucide-react';
+import { MapPin, Building, Briefcase, Search, XCircle } from 'lucide-react';
 
 const Opportunities = () => {
   const { authFetch, user } = useAuth();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(null);
 
-  // Cargar oportunidades desde el Backend (Puerto 5001)
+  // 1. ESTADO PARA LA BÚSQUEDA
+  const [searchTerm, setSearchTerm] = useState('');
+
   useEffect(() => {
     fetchOpportunities();
   }, []);
@@ -26,187 +20,159 @@ const Opportunities = () => {
       const res = await authFetch('http://localhost:5001/api/opportunities');
       if (res.ok) {
         const data = await res.json();
-        // Agregamos datos visuales extra para que se vea como tu diseño
-        // (ya que la base de datos aún no tiene salario ni etiquetas)
-        const enhancedData = data.map((op, index) => ({
-          ...op,
-          // Colores rotativos para los logos (Azul, Morado, Verde, Rojo)
-          colorTheme: ['blue', 'purple', 'green', 'red'][index % 4],
-          salary: index % 2 === 0 ? '$800 - $1200' : '$400 - $600',
-          tags:
-            index % 2 === 0
-              ? ['Empleo', 'Remoto', 'Tiempo Completo']
-              : ['Pasantía', 'Híbrido', 'Medio Tiempo'],
-          closingDate: '15 Feb 2026',
-        }));
-        setOpportunities(enhancedData);
+        setOpportunities(data);
       }
     } catch (error) {
-      console.error('Error cargando ofertas:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApply = async (op) => {
-    if (!confirm(`¿Deseas postularte a: ${op.title}?`)) return;
-
+  const handleApply = async (opportunityTitle) => {
+    setApplying(opportunityTitle);
     try {
       const res = await authFetch('http://localhost:5001/api/applications', {
         method: 'POST',
-        body: JSON.stringify({ opportunity_title: op.title }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity_title: opportunityTitle }),
       });
-      if (res.ok) alert('¡Postulación enviada con éxito!');
-      else alert('Error al postular.');
+
+      if (res.ok) {
+        alert(`¡Te has postulado exitosamente a: ${opportunityTitle}!`);
+      } else {
+        alert('Hubo un error al postular.');
+      }
     } catch (error) {
+      console.error(error);
       alert('Error de conexión.');
+    } finally {
+      setApplying(null);
     }
   };
 
-  // Función para obtener clases de color según el tema
-  const getThemeClasses = (color) => {
-    const themes = {
-      blue: { bg: 'bg-blue-600', text: 'text-blue-600', light: 'bg-blue-50' },
-      purple: {
-        bg: 'bg-purple-600',
-        text: 'text-purple-600',
-        light: 'bg-purple-50',
-      },
-      green: {
-        bg: 'bg-emerald-600',
-        text: 'text-emerald-600',
-        light: 'bg-emerald-50',
-      },
-      red: { bg: 'bg-red-600', text: 'text-red-600', light: 'bg-red-50' },
-    };
-    return themes[color] || themes.blue;
-  };
+  // 2. LÓGICA DE FILTRADO (MAGIA AQUÍ)
+  // Filtramos la lista original basándonos en lo que el usuario escribe
+  const filteredOpportunities = opportunities.filter((op) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      op.title.toLowerCase().includes(term) || // Busca en Título
+      op.company.toLowerCase().includes(term) || // Busca en Empresa
+      (op.location && op.location.toLowerCase().includes(term)) // Busca en Ubicación
+    );
+  });
 
   return (
-    <div className="max-w-7xl mx-auto p-8 min-h-screen">
-      {/* HEADER CON BUSCADOR */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+    <div className="max-w-6xl mx-auto p-8 animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+          <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">
             Oportunidades Laborales
           </h1>
           <p className="text-slate-500 font-medium">
-            Encuentra el trabajo ideal para tu carrera profesional.
+            Encuentra tu próxima pasantía o empleo.
           </p>
         </div>
 
-        {/* Barra de Búsqueda Estilizada */}
-        <div className="flex items-center bg-white p-2 rounded-full shadow-sm border border-slate-200 w-full md:w-auto">
-          <Search className="text-slate-400 ml-3" size={20} />
+        {/* 3. BARRA DE BÚSQUEDA FUNCIONAL */}
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-3 top-3 text-slate-400" size={20} />
           <input
             type="text"
-            placeholder="Buscar por cargo o empresa..."
-            className="bg-transparent border-none outline-none px-4 py-2 text-sm w-64 text-slate-700 font-medium placeholder-slate-400"
+            placeholder="Buscar cargo, empresa o ciudad..."
+            className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600 shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)} // Actualiza el estado al escribir
           />
-          <button className="bg-[#1e293b] text-white p-2 rounded-full hover:bg-blue-600 transition-colors">
-            <Filter size={18} />
-          </button>
+          {/* Botón para borrar búsqueda si hay texto */}
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+            >
+              <XCircle size={16} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* GRID DE TARJETAS (DISEÑO SOLICITADO) */}
       {loading ? (
-        <p className="text-center text-slate-400 font-bold">
-          Cargando vacantes...
-        </p>
+        <div className="text-center py-20">
+          <p className="text-blue-600 font-bold animate-pulse">
+            Cargando ofertas...
+          </p>
+        </div>
+      ) : filteredOpportunities.length === 0 ? (
+        // Muestra esto si no hay nada (o si la búsqueda no encuentra nada)
+        <div className="p-12 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
+          <Briefcase size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-400 font-bold">
+            {searchTerm
+              ? `No encontramos ofertas para "${searchTerm}"`
+              : 'No hay ofertas disponibles por el momento.'}
+          </p>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="text-blue-600 font-bold text-sm mt-2 hover:underline"
+            >
+              Borrar filtros
+            </button>
+          )}
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {opportunities.map((op) => {
-            const theme = getThemeClasses(op.colorTheme);
-            const initial = op.company.charAt(0).toUpperCase();
-
-            return (
-              <div
-                key={op.id}
-                className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-all relative group"
-              >
-                {/* HEADER DE LA TARJETA */}
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex gap-4">
-                    {/* Logo con Inicial y Color */}
-                    <div
-                      className={`h-14 w-14 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-md ${theme.bg}`}
-                    >
-                      {initial}
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
-                        {op.title}
-                      </h2>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                        {op.company}
-                      </p>
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Renderizamos la lista FILTRADA */}
+          {filteredOpportunities.map((op) => (
+            <div
+              key={op.id}
+              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition-all flex flex-col justify-between h-full group"
+            >
+              <div>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <Building size={24} />
                   </div>
-                  <button className="text-slate-300 hover:text-blue-500 transition-colors">
-                    <Bookmark size={24} />
-                  </button>
+                  <span className="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+                    Full Time
+                  </span>
                 </div>
 
-                {/* ETIQUETAS (TAGS) */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {op.tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                        i === 0
-                          ? 'bg-blue-50 text-blue-600'
-                          : i === 1
-                            ? 'bg-green-50 text-green-600'
-                            : 'bg-purple-50 text-purple-600'
-                      }`}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* DESCRIPCIÓN CORTA */}
-                <p className="text-slate-500 text-sm mb-6 line-clamp-2 leading-relaxed">
-                  {op.description ||
-                    'Únete a nuestro equipo y desarrolla tu potencial en un ambiente innovador y dinámico. Buscamos talento joven de la UCE.'}
+                <h3 className="font-bold text-xl text-slate-800 mb-1">
+                  {op.title}
+                </h3>
+                <p className="text-blue-600 font-bold text-sm mb-4">
+                  {op.company}
                 </p>
 
-                {/* INFO LOCATION & SALARY */}
-                <div className="flex items-center gap-6 mb-6 text-sm font-bold text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={16} className="text-slate-400" />
-                    {op.location}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <DollarSign size={16} className="text-slate-400" />
-                    {op.salary}
-                  </div>
-                </div>
+                <p className="text-slate-500 text-sm leading-relaxed mb-6 line-clamp-3">
+                  {op.description || 'Sin descripción detallada.'}
+                </p>
 
-                {/* FOOTER: FECHA Y BOTÓN */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                  <div className="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-50 px-3 py-1.5 rounded-full">
-                    <Clock size={14} />
-                    Cierra: {op.closingDate}
-                  </div>
-
-                  {user.role === 'student' ? (
-                    <button
-                      onClick={() => handleApply(op)}
-                      className="bg-[#1e293b] hover:bg-blue-600 text-white text-sm font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all flex items-center gap-2"
-                    >
-                      Postular <ChevronRight size={16} />
-                    </button>
-                  ) : (
-                    <span className="text-xs font-bold text-slate-300 uppercase bg-slate-100 px-3 py-1 rounded-lg">
-                      Vista de Admin
-                    </span>
-                  )}
+                <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider mb-6">
+                  <MapPin size={14} /> {op.location || 'Quito, EC'}
                 </div>
               </div>
-            );
-          })}
+
+              {user?.role === 'student' ? (
+                <button
+                  onClick={() => handleApply(op.title)}
+                  disabled={applying === op.title}
+                  className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                    applying === op.title
+                      ? 'bg-green-100 text-green-700 cursor-default'
+                      : 'bg-slate-900 text-white hover:bg-blue-600 hover:shadow-lg active:scale-95'
+                  }`}
+                >
+                  {applying === op.title ? 'Postulando...' : 'Postularme Ahora'}
+                </button>
+              ) : (
+                <div className="w-full py-3 bg-slate-100 text-slate-400 rounded-xl font-bold text-center text-sm cursor-default">
+                  Vista de Administrador
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
