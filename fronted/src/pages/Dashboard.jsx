@@ -16,18 +16,47 @@ import {
   CheckCircle,
   LayoutDashboard,
   Bell,
+  Clock,
 } from 'lucide-react';
-// 1. IMPORTAR NOTIFICACIÓN
 import Notification from '../components/Notification';
 
-// ... (Componentes QuickActionCard, StatCard, ApplicationCard, ModalOverlay siguen igual)
-const QuickActionCard = ({ icon: Icon, title, primary = false, onClick }) => (
+// --- COMPONENTES AUXILIARES (Sin cambios) ---
+const QuickActionCard = ({
+  icon: Icon,
+  title,
+  primary = false,
+  onClick,
+  disabled = false,
+  subtitle,
+}) => (
   <button
-    onClick={onClick}
-    className={`flex items-center gap-3 p-4 rounded-xl font-bold transition-all w-full text-left cursor-pointer active:scale-95 ${primary ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200' : 'bg-white text-slate-700 border border-slate-100 hover:bg-slate-50 hover:shadow-sm'}`}
+    onClick={disabled ? null : onClick}
+    disabled={disabled}
+    className={`flex items-center gap-3 p-4 rounded-xl font-bold transition-all w-full text-left active:scale-95 relative overflow-hidden
+        ${
+          disabled
+            ? 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed opacity-70'
+            : primary
+              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 cursor-pointer'
+              : 'bg-white text-slate-700 border border-slate-100 hover:bg-slate-50 hover:shadow-sm cursor-pointer'
+        }`}
   >
-    <Icon size={20} className={primary ? 'text-blue-100' : 'text-blue-600'} />
-    <span>{title}</span>
+    <Icon
+      size={20}
+      className={
+        disabled
+          ? 'text-slate-300'
+          : primary
+            ? 'text-blue-100'
+            : 'text-blue-600'
+      }
+    />
+    <div className="flex flex-col">
+      <span>{title}</span>
+      {subtitle && (
+        <span className="text-[10px] font-normal opacity-80">{subtitle}</span>
+      )}
+    </div>
   </button>
 );
 
@@ -91,30 +120,42 @@ const ModalOverlay = ({ title, onClose, children }) => (
   </div>
 );
 
+// --- DASHBOARD PRINCIPAL ---
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
 
   const [listData, setListData] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [approvedApps, setApprovedApps] = useState([]); // Postulaciones aprobadas
+  const [myAppointments, setMyAppointments] = useState([]); // Citas ya agendadas
+
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [notifications, setNotifications] = useState([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-
-  // 2. ESTADO PARA LA NOTIFICACIÓN VISUAL
   const [visualNotification, setVisualNotification] = useState({
     message: null,
     type: null,
   });
 
+  // Estado para agendar cita
+  const [appointmentData, setAppointmentData] = useState({
+    appId: '',
+    date: '',
+    time: '',
+  });
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await authFetch('http://localhost:5001/api/applications');
-        if (res.ok) {
-          const data = await res.json();
+        // 1. Cargar Postulaciones
+        const resApps = await authFetch(
+          'http://localhost:5001/api/applications'
+        );
+        if (resApps.ok) {
+          const data = await resApps.json();
           if (isAdmin) {
             const pending = data.filter((app) => app.status === 'Pendiente');
             setNotifications(pending);
@@ -123,37 +164,43 @@ const Dashboard = () => {
             const myApps = data.filter(
               (app) => String(app.student_id) === String(user.id)
             );
-            const updates = myApps.filter((app) => app.status !== 'Pendiente');
-            setNotifications(updates);
             setListData(myApps);
+            setNotifications(
+              myApps.filter((app) => app.status !== 'Pendiente')
+            );
+            // Filtramos las aprobadas para el select de citas
+            setApprovedApps(myApps.filter((app) => app.status === 'Aprobado'));
           }
+        }
+
+        // 2. Cargar Citas existentes
+        const resCitas = await authFetch(
+          'http://localhost:5001/api/appointments'
+        );
+        if (resCitas.ok) {
+          const citas = await resCitas.json();
+          setMyAppointments(citas);
         }
       } catch (error) {
         console.error('Error cargando datos', error);
       }
     };
     fetchData();
-  }, [user, isAdmin, authFetch]); // Agregué authFetch a las dependencias
+  }, [user, isAdmin, authFetch]);
 
+  // Manejo de CV (Igual que antes)
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
     const file = document.getElementById('cv-upload').files[0];
     if (!file) {
-      setVisualNotification({
-        message: 'Por favor, selecciona un archivo PDF.',
-        type: 'error',
-      });
+      setVisualNotification({ message: 'Selecciona un PDF', type: 'error' });
       setUploading(false);
       return;
     }
-
-    let token = localStorage.getItem('token');
-    if (token) token = token.replace(/^"|"$/g, '').trim();
-
+    let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
     const formData = new FormData();
     formData.append('file', file);
-
     try {
       const res = await fetch('http://localhost:5001/api/upload-cv', {
         method: 'POST',
@@ -161,41 +208,74 @@ const Dashboard = () => {
         body: formData,
       });
       if (res.ok) {
-        // 3. ÉXITO AL SUBIR CV
         setVisualNotification({
-          message: '¡Tu Hoja de Vida se ha subido correctamente!',
+          message: 'CV Subido con éxito',
           type: 'success',
         });
         setShowCVModal(false);
-        // Recargar después de un momento para que se vea la notificación
         setTimeout(() => window.location.reload(), 2000);
       } else {
-        const data = await res.json();
-        setVisualNotification({
-          message: data.error || 'Error al subir el archivo.',
-          type: 'error',
-        });
+        setVisualNotification({ message: 'Error al subir', type: 'error' });
       }
-    } catch (error) {
-      setVisualNotification({
-        message: 'Error de conexión al intentar subir el archivo.',
-        type: 'error',
-      });
+    } catch {
+      setVisualNotification({ message: 'Error de conexión', type: 'error' });
     } finally {
       setUploading(false);
     }
   };
 
+  // --- NUEVO: Manejo de Agendar Cita ---
+  const handleScheduleSubmit = async (e) => {
+    e.preventDefault();
+    if (
+      !appointmentData.appId ||
+      !appointmentData.date ||
+      !appointmentData.time
+    ) {
+      setVisualNotification({
+        message: 'Completa todos los campos',
+        type: 'error',
+      });
+      return;
+    }
+    try {
+      const res = await authFetch('http://localhost:5001/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          application_id: appointmentData.appId,
+          date: appointmentData.date,
+          time: appointmentData.time,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setVisualNotification({
+          message: '¡Entrevista agendada!',
+          type: 'success',
+        });
+        setShowCalendarModal(false);
+        setMyAppointments([...myAppointments, data]); // Actualizar contador visualmente
+      } else {
+        setVisualNotification({
+          message: data.error || 'Error al agendar',
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      setVisualNotification({ message: 'Error de conexión', type: 'error' });
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-8 relative min-h-screen">
-      {/* 4. RENDERIZAR NOTIFICACIÓN */}
       <Notification
         message={visualNotification.message}
         type={visualNotification.type}
         onClose={() => setVisualNotification({ message: null, type: null })}
       />
 
-      {/* MODALES */}
+      {/* MODAL CV */}
       {showCVModal && (
         <ModalOverlay
           title="Subir Hoja de Vida"
@@ -221,35 +301,97 @@ const Dashboard = () => {
             <button
               type="submit"
               disabled={uploading}
-              className={`w-full text-white font-bold py-3 rounded-xl ${uploading ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700"
             >
               {uploading ? 'Subiendo...' : 'Guardar CV'}
             </button>
           </form>
         </ModalOverlay>
       )}
+
+      {/* --- NUEVO MODAL: AGENDAR CITA --- */}
       {showCalendarModal && (
         <ModalOverlay
-          title="📅 Agendar Cita"
+          title="📅 Agendar Entrevista"
           onClose={() => setShowCalendarModal(false)}
         >
-          <form className="space-y-4">
-            <input
-              type="date"
-              className="w-full p-3 bg-slate-50 border rounded-xl"
-            />
-            <input
-              type="time"
-              className="w-full p-3 bg-slate-50 border rounded-xl"
-            />
-            <button className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl">
-              Confirmar
+          <form onSubmit={handleScheduleSubmit} className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800 mb-4">
+              <p>
+                ¡Felicidades! Has pasado a la siguiente etapa. Selecciona la
+                postulación y tu horario preferido.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                Selecciona Postulación Aprobada
+              </label>
+              <select
+                className="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) =>
+                  setAppointmentData({
+                    ...appointmentData,
+                    appId: e.target.value,
+                  })
+                }
+                required
+              >
+                <option value="">-- Selecciona --</option>
+                {approvedApps.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.opportunity_title} (Aprobado)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Fecha
+                </label>
+                <input
+                  type="date"
+                  className="w-full p-3 bg-slate-50 border rounded-xl"
+                  onChange={(e) =>
+                    setAppointmentData({
+                      ...appointmentData,
+                      date: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Hora
+                </label>
+                <input
+                  type="time"
+                  className="w-full p-3 bg-slate-50 border rounded-xl"
+                  onChange={(e) =>
+                    setAppointmentData({
+                      ...appointmentData,
+                      time: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition"
+            >
+              Confirmar Cita
             </button>
           </form>
         </ModalOverlay>
       )}
 
-      {/* HEADER MEJORADO CON NOTIFICACIONES */}
+      {/* HEADER */}
       <header className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative z-40">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
@@ -264,9 +406,7 @@ const Dashboard = () => {
             Panel de control académico.
           </p>
         </div>
-
         <div className="flex items-center gap-4">
-          {/* CAMPANA DE NOTIFICACIONES */}
           <div className="relative">
             <button
               onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -277,68 +417,47 @@ const Dashboard = () => {
                 <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
               )}
             </button>
-
-            {/* DROPDOWN DE NOTIFICACIONES */}
             {showNotifDropdown && (
-              <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+              <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
                 <div className="p-3 border-b border-slate-50 bg-slate-50 flex justify-between items-center">
                   <span className="font-bold text-slate-700 text-sm">
                     Notificaciones ({notifications.length})
                   </span>
                   <button onClick={() => setShowNotifDropdown(false)}>
-                    <X
-                      size={16}
-                      className="text-slate-400 hover:text-slate-600"
-                    />
+                    <X size={16} />
                   </button>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {notifications.length === 0 ? (
                     <div className="p-6 text-center text-slate-400 text-sm">
-                      No tienes novedades pendientes.
+                      Sin novedades.
                     </div>
                   ) : (
                     notifications.map((notif) => (
                       <div
                         key={notif.id}
-                        onClick={() =>
-                          isAdmin ? navigate('/admin/postulaciones') : null
-                        }
-                        className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors flex gap-3 items-start ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
+                        className="p-4 border-b border-slate-50 hover:bg-slate-50 flex gap-3 items-start"
                       >
                         <div
-                          className={`mt-1 h-2 w-2 rounded-full ${notif.status === 'Pendiente' ? 'bg-yellow-400' : notif.status === 'Aprobado' ? 'bg-green-500' : 'bg-red-500'}`}
+                          className={`mt-1 h-2 w-2 rounded-full ${notif.status === 'Pendiente' ? 'bg-yellow-400' : 'bg-green-500'}`}
                         ></div>
                         <div>
-                          <p className="text-sm font-bold text-slate-700 line-clamp-1">
+                          <p className="text-sm font-bold text-slate-700">
                             {notif.opportunity_title}
                           </p>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-slate-500">
                             {isAdmin
-                              ? `Nuevo postulante (ID: ${notif.student_id})`
-                              : `Estado actualizado: ${notif.status}`}
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
-                            <Calendar size={10} /> {notif.date}
+                              ? `ID: ${notif.student_id}`
+                              : `Estado: ${notif.status}`}
                           </p>
                         </div>
                       </div>
                     ))
                   )}
                 </div>
-                {isAdmin && notifications.length > 0 && (
-                  <button
-                    onClick={() => navigate('/admin/postulaciones')}
-                    className="w-full py-2 bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition-colors"
-                  >
-                    Ver todas las postulaciones
-                  </button>
-                )}
               </div>
             )}
           </div>
-
-          {/* ÍCONO DE USUARIO */}
           <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shadow-sm">
             <User size={20} />
           </div>
@@ -372,12 +491,12 @@ const Dashboard = () => {
             />
             <div
               onClick={() => navigate('/admin/postulaciones')}
-              className="cursor-pointer transition-transform hover:scale-105 h-full"
+              className="cursor-pointer hover:scale-105"
             >
               <StatCard
                 icon={LayoutDashboard}
                 title="Reportes"
-                value="Ver Detalle"
+                value="Ver"
                 colorBg="bg-orange-50"
                 colorText="text-orange-600"
               />
@@ -399,17 +518,18 @@ const Dashboard = () => {
               colorBg="bg-green-50"
               colorText="text-green-600"
             />
+            {/* AQUÍ ACTUALIZAMOS EL CONTADOR DE CITAS */}
             <StatCard
-              icon={Calendar}
-              title="Citas"
-              value="0"
+              icon={Clock}
+              title="Entrevistas"
+              value={myAppointments.length}
               colorBg="bg-purple-50"
               colorText="text-purple-600"
             />
             <StatCard
               icon={CheckCircle}
-              title="Estado"
-              value="Activo"
+              title="Aprobadas"
+              value={approvedApps.length}
               colorBg="bg-orange-50"
               colorText="text-orange-600"
             />
@@ -457,10 +577,18 @@ const Dashboard = () => {
                     title="Subir CV"
                     onClick={() => setShowCVModal(true)}
                   />
+
+                  {/* --- BOTÓN INTELIGENTE: AGENDAR CITA --- */}
                   <QuickActionCard
                     icon={Calendar}
-                    title="Agendar Cita"
+                    title="Agendar Entrevista"
+                    subtitle={
+                      approvedApps.length > 0
+                        ? '¡Tienes aprobaciones pendientes!'
+                        : 'Requiere postulación aprobada'
+                    }
                     onClick={() => setShowCalendarModal(true)}
+                    disabled={approvedApps.length === 0} // SOLO SE ACTIVA SI HAY APROBADAS
                   />
                 </>
               )}
@@ -471,6 +599,7 @@ const Dashboard = () => {
               />
             </div>
           </section>
+
           <section>
             <h2 className="text-xl font-bold text-slate-800 mb-4">
               {isAdmin ? 'Últimas Postulaciones' : 'Actividad Reciente'}

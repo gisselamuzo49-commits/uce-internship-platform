@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-import time # Importamos time para manejar esperas si fuera necesario
+import time
 
 app = Flask(__name__)
 
@@ -25,7 +25,7 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
 # ==========================================
-# MODELOS
+# MODELOS DE BASE DE DATOS
 # ==========================================
 
 class User(db.Model):
@@ -48,9 +48,7 @@ class Certification(db.Model):
     title = db.Column(db.String(200), nullable=False)
     institution = db.Column(db.String(100), nullable=False)
     year = db.Column(db.String(10), nullable=False)
-
-    def to_dict(self):
-        return {'id': self.id, 'title': self.title, 'institution': self.institution, 'year': self.year}
+    def to_dict(self): return {'id': self.id, 'title': self.title, 'institution': self.institution, 'year': self.year}
 
 class Opportunity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -68,9 +66,25 @@ class Application(db.Model):
     date = db.Column(db.String(50), default=datetime.now().strftime("%Y-%m-%d"))
     def to_dict(self): return {'id': self.id, 'student_id': self.student_id, 'opportunity_title': self.opportunity_title, 'status': self.status, 'date': self.date}
 
+# --- NUEVO MODELO: CITAS (ENTREVISTAS) ---
+class Appointment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    application_id = db.Column(db.Integer, db.ForeignKey('application.id'), nullable=False)
+    date = db.Column(db.String(20), nullable=False)
+    time = db.Column(db.String(20), nullable=False)
+    status = db.Column(db.String(20), default='Programada')
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'date': self.date, 'time': self.time, 
+            'status': self.status, 'application_id': self.application_id
+        }
+
 # ==========================================
-# RUTAS
+# RUTAS DEL SISTEMA
 # ==========================================
+
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
@@ -83,13 +97,10 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    # INTENTO DE RECONEXIÓN: Si las tablas no existen, intentar crearlas ahora
-    # Esto salva el login si la base de datos estaba dormida al iniciar
-    try:
-        db.create_all()
-    except:
-        pass # Si falla, seguimos, quizás ya existen
-
+    # Intento de auto-reparación de tablas al loguear
+    try: db.create_all()
+    except: pass
+    
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
     if user and check_password_hash(user.password, data['password']):
@@ -173,6 +184,32 @@ def update_application_status(app_id):
     db.session.commit()
     return jsonify({'message': 'Estado actualizado'}), 200
 
+# --- NUEVAS RUTAS: AGENDAR CITA ---
+@app.route('/api/appointments', methods=['POST'])
+@jwt_required()
+def create_appointment():
+    current_user_id = get_jwt_identity()
+    data = request.json
+    # Verificar si ya tiene cita para esa postulación
+    existing = Appointment.query.filter_by(application_id=data['application_id']).first()
+    if existing: return jsonify({'error': 'Ya tienes una cita para esta postulación'}), 400
+
+    new_app = Appointment(student_id=int(current_user_id), application_id=data['application_id'], date=data['date'], time=data['time'])
+    db.session.add(new_app)
+    db.session.commit()
+    return jsonify({'message': 'Entrevista agendada con éxito'}), 201
+
+@app.route('/api/appointments', methods=['GET'])
+@jwt_required()
+def get_appointments():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if user.role == 'admin':
+        citas = Appointment.query.all()
+    else:
+        citas = Appointment.query.filter_by(student_id=int(current_user_id)).all()
+    return jsonify([c.to_dict() for c in citas]), 200
+
 @app.route('/api/upload-cv', methods=['POST'])
 @jwt_required()
 def upload_cv():
@@ -190,17 +227,14 @@ def get_cv(user_id):
     except FileNotFoundError: return jsonify({'error': 'CV no encontrado'}), 404
 
 # ==========================================
-# INICIALIZACIÓN SEGURA (ESTO ARREGLA EL CRASH)
+# INICIALIZACIÓN BLINDADA
 # ==========================================
 with app.app_context():
     try:
-        # Intentamos crear las tablas
         db.create_all()
-        print("Tablas creadas correctamente")
+        print("Tablas verificadas/creadas correctamente")
     except Exception as e:
-        # Si falla (porque la DB no está lista), SOLO imprimimos el error
-        # PERO NO DEJAMOS QUE EL PROGRAMA SE CIERRE
-        print("Advertencia: La base de datos no está lista aún. Se intentará luego.", e)
+        print("Esperando a la base de datos...", e)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
