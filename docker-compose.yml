@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: uce_backend
+    ports:
+      - "5001:5000"  # <--- IMPORTANTE: 5001 a la izquierda
+    environment:
+      - DATABASE_URL=postgresql://uce_user:uce_password@postgres:5432/uce_db
+      - MONGO_URI=mongodb://mongo:27017/
+    depends_on:
+      - postgres
+      - mongo
+    networks:
+      - uce-net
+    volumes:
+      - ./backend:/code
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: uce_postgres
+    environment:
+      POSTGRES_USER: uce_user
+      POSTGRES_PASSWORD: uce_password
+      POSTGRES_DB: uce_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - uce-net
+
+  mongo:
+    image: mongo:6.0
+    container_name: uce_mongo
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - uce-net
+
+volumes:
+  postgres_data:
+  mongo_data:
+
+networks:
+  uce-net:
+    driver: bridge
