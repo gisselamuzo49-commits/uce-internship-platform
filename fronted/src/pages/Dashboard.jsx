@@ -11,14 +11,11 @@ import {
   Edit,
   Building,
   X,
-  Clock,
-  CheckCircle,
   PlusCircle,
   Users,
+  CheckCircle,
   LayoutDashboard,
 } from 'lucide-react';
-
-// --- 1. COMPONENTES UI ---
 
 const QuickActionCard = ({ icon: Icon, title, primary = false, onClick }) => (
   <button
@@ -48,7 +45,7 @@ const StatCard = ({ icon: Icon, title, value, colorBg, colorText }) => (
   </div>
 );
 
-const ApplicationCard = ({ title, subtitle, status, date, id }) => {
+const ApplicationCard = ({ title, subtitle, status, date }) => {
   const statusColors = {
     Pendiente: 'bg-yellow-100 text-yellow-700',
     Aprobado: 'bg-green-100 text-green-700',
@@ -79,7 +76,6 @@ const ApplicationCard = ({ title, subtitle, status, date, id }) => {
   );
 };
 
-// --- 2. MODALES ---
 const ModalOverlay = ({ title, onClose, children }) => (
   <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
     <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -97,7 +93,6 @@ const ModalOverlay = ({ title, onClose, children }) => (
   </div>
 );
 
-// --- 3. DASHBOARD PRINCIPAL ---
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
   const navigate = useNavigate();
@@ -105,11 +100,10 @@ const Dashboard = () => {
   const [listData, setListData] = useState([]);
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // Detectar Rol
   const isAdmin = user?.role === 'admin';
 
-  // Cargar datos al iniciar
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -117,10 +111,8 @@ const Dashboard = () => {
         if (res.ok) {
           const data = await res.json();
           if (isAdmin) {
-            // Si es Admin, ve TODAS las postulaciones recientes
             setListData(data.reverse().slice(0, 5));
           } else {
-            // Si es Estudiante, solo ve las SUYAS
             const misPostulaciones = data.filter(
               (app) => String(app.student_id) === String(user.id)
             );
@@ -134,12 +126,45 @@ const Dashboard = () => {
     fetchData();
   }, [user, isAdmin]);
 
-  // Manejo de Formularios (Solo Estudiantes)
-  const handleCVSubmit = (e) => {
+  const handleCVSubmit = async (e) => {
     e.preventDefault();
-    alert('¡CV subido!');
-    setShowCVModal(false);
+    setUploading(true);
+
+    const fileInput = document.getElementById('cv-upload');
+    const file = fileInput.files[0];
+
+    if (!file) {
+      alert('Selecciona un archivo PDF');
+      setUploading(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('http://localhost:5001/api/upload-cv', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      if (res.ok) {
+        alert('¡CV subido con éxito! Ahora aparece en tu perfil.');
+        setShowCVModal(false);
+      } else {
+        alert('Error al subir el archivo.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Error de conexión.');
+    } finally {
+      setUploading(false);
+    }
   };
+
   const handleCalendarSubmit = (e) => {
     e.preventDefault();
     alert('¡Cita agendada!');
@@ -148,25 +173,35 @@ const Dashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8 relative min-h-screen">
-      {/* MODALES (Solo se muestran si los activas) */}
       {showCVModal && (
         <ModalOverlay
           title="Subir Hoja de Vida"
           onClose={() => setShowCVModal(false)}
         >
           <form onSubmit={handleCVSubmit} className="space-y-6">
-            <div className="border-2 border-dashed border-blue-200 bg-blue-50 rounded-xl p-8 text-center">
+            <div className="border-2 border-dashed border-blue-200 bg-blue-50 rounded-xl p-8 text-center relative">
               <Upload className="mx-auto text-blue-500 mb-2" size={40} />
               <p className="font-bold text-slate-700">Sube tu PDF aquí</p>
-              <button className="mt-4 text-blue-600 font-bold underline">
-                Seleccionar
-              </button>
+              <input
+                type="file"
+                id="cv-upload"
+                accept=".pdf"
+                className="hidden"
+                onChange={() => {}}
+              />
+              <label
+                htmlFor="cv-upload"
+                className="block mt-4 text-blue-600 font-bold underline cursor-pointer"
+              >
+                Seleccionar Archivo
+              </label>
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl"
+              disabled={uploading}
+              className={`w-full text-white font-bold py-3 rounded-xl ${uploading ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              Guardar
+              {uploading ? 'Subiendo...' : 'Guardar CV'}
             </button>
           </form>
         </ModalOverlay>
@@ -198,21 +233,18 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* HEADER */}
       <header className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
             Hola, {user?.name}
             {isAdmin && (
               <span className="ml-2 bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full uppercase">
-                Administrador
+                Admin
               </span>
             )}
           </h1>
           <p className="text-slate-500 text-sm font-medium">
-            {isAdmin
-              ? 'Gestiona las vacantes y postulantes desde aquí.'
-              : 'Panel de control académico.'}
+            Panel de control académico.
           </p>
         </div>
         <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shadow-sm">
@@ -220,13 +252,12 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* STATS (Diferentes según rol) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {isAdmin ? (
           <>
             <StatCard
               icon={Briefcase}
-              title="Vacantes Activas"
+              title="Vacantes"
               value="12"
               colorBg="bg-blue-50"
               colorText="text-blue-600"
@@ -288,20 +319,17 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-2 space-y-8">
-          {/* ACCIONES RÁPIDAS (DINÁMICAS) */}
           <section>
             <h2 className="text-xl font-bold text-slate-800 mb-4">
               Acciones Rápidas
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* --- SI ERES ADMIN --- */}
               {isAdmin ? (
                 <>
                   <QuickActionCard
                     icon={PlusCircle}
-                    title="Publicar Nueva Vacante"
+                    title="Publicar Vacante"
                     primary
                     onClick={() => navigate('/admin/nueva-oportunidad')}
                   />
@@ -312,16 +340,15 @@ const Dashboard = () => {
                   />
                   <QuickActionCard
                     icon={Search}
-                    title="Ver Ofertas Publicadas"
+                    title="Ver Ofertas"
                     onClick={() => navigate('/oportunidades')}
                   />
                 </>
               ) : (
-                /* --- SI ERES ESTUDIANTE --- */
                 <>
                   <QuickActionCard
                     icon={Search}
-                    title="Buscar Oportunidades"
+                    title="Buscar Empleo"
                     primary
                     onClick={() => navigate('/oportunidades')}
                   />
@@ -337,7 +364,6 @@ const Dashboard = () => {
                   />
                 </>
               )}
-
               <QuickActionCard
                 icon={Edit}
                 title="Editar Perfil"
@@ -346,12 +372,9 @@ const Dashboard = () => {
             </div>
           </section>
 
-          {/* LISTA DE DATOS */}
           <section>
             <h2 className="text-xl font-bold text-slate-800 mb-4">
-              {isAdmin
-                ? 'Últimas Postulaciones Recibidas'
-                : 'Mis Postulaciones Recientes'}
+              {isAdmin ? 'Últimas Postulaciones' : 'Actividad Reciente'}
             </h2>
             <div className="space-y-4">
               {listData.length === 0 ? (
@@ -364,11 +387,10 @@ const Dashboard = () => {
                 listData.map((item) => (
                   <ApplicationCard
                     key={item.id}
-                    id={item.id}
                     title={item.opportunity_title}
                     subtitle={
                       isAdmin
-                        ? `Estudiante ID: ${item.student_id}`
+                        ? `ID Estudiante: ${item.student_id}`
                         : 'Tu postulación'
                     }
                     status={item.status}
@@ -376,25 +398,6 @@ const Dashboard = () => {
                   />
                 ))
               )}
-            </div>
-          </section>
-        </div>
-
-        {/* COLUMNA DERECHA */}
-        <div className="space-y-8">
-          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">
-              Avisos Importantes
-            </h2>
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-                <h4 className="font-bold text-sm text-slate-800">
-                  Feria Laboral UCE
-                </h4>
-                <p className="text-xs text-slate-600 mt-1">
-                  Viernes 20, Explanada Central.
-                </p>
-              </div>
             </div>
           </section>
         </div>
