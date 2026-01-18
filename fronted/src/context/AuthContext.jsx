@@ -91,8 +91,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // --- 5. NUEVA FUNCIÓN: Actualizar usuario localmente (FALTABA ESTA) ---
+  // Sirve para que el perfil se actualice sin recargar la página
+  const updateLocalUser = (newData) => {
+    setUser(newData);
+    localStorage.setItem('siiu_user', JSON.stringify(newData));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, authFetch, loading }}>
+    // AGREGAMOS updateLocalUser AL VALUE
+    <AuthContext.Provider
+      value={{ user, login, logout, authFetch, loading, updateLocalUser }}
+    >
       {!loading && children}
     </AuthContext.Provider>
   );
