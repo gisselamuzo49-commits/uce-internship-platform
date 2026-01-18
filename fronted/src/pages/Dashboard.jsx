@@ -15,6 +15,8 @@ import {
   Users,
   CheckCircle,
   LayoutDashboard,
+  Bell,
+  ChevronRight,
 } from 'lucide-react';
 
 // --- COMPONENTES AUXILIARES ---
@@ -92,11 +94,16 @@ const ModalOverlay = ({ title, onClose, children }) => (
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = user?.role === 'admin';
+
   const [listData, setListData] = useState([]);
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const isAdmin = user?.role === 'admin';
+
+  // --- NUEVO: ESTADOS PARA NOTIFICACIONES ---
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -104,11 +111,29 @@ const Dashboard = () => {
         const res = await authFetch('http://localhost:5001/api/applications');
         if (res.ok) {
           const data = await res.json();
-          isAdmin
-            ? setListData(data.reverse().slice(0, 5))
-            : setListData(
-                data.filter((app) => String(app.student_id) === String(user.id))
-              );
+
+          // --- LÓGICA DE NOTIFICACIONES ---
+          if (isAdmin) {
+            // Admin: Notificar todas las que sean "Pendiente"
+            const pending = data.filter((app) => app.status === 'Pendiente');
+            setNotifications(pending);
+
+            // Lista del Dashboard (Solo las últimas 5)
+            setListData(data.reverse().slice(0, 5));
+          } else {
+            // Estudiante: Filtrar sus propias postulaciones
+            const myApps = data.filter(
+              (app) => String(app.student_id) === String(user.id)
+            );
+
+            // Notificar actualizaciones (Aprobado o Rechazado)
+            // Nota: En un sistema real usaríamos una base de datos de "leídos",
+            // aquí mostramos el estado actual.
+            const updates = myApps.filter((app) => app.status !== 'Pendiente');
+            setNotifications(updates);
+
+            setListData(myApps);
+          }
         }
       } catch (error) {
         console.error('Error cargando datos', error);
@@ -210,8 +235,8 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* HEADER */}
-      <header className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+      {/* HEADER MEJORADO CON NOTIFICACIONES */}
+      <header className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative z-40">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
             Hola, {user?.name}{' '}
@@ -225,8 +250,84 @@ const Dashboard = () => {
             Panel de control académico.
           </p>
         </div>
-        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shadow-sm">
-          <User size={20} />
+
+        <div className="flex items-center gap-4">
+          {/* --- NUEVO: CAMPANA DE NOTIFICACIONES --- */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+              className="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-colors relative"
+            >
+              <Bell size={20} />
+              {notifications.length > 0 && (
+                <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
+              )}
+            </button>
+
+            {/* DROPDOWN DE NOTIFICACIONES */}
+            {showNotifDropdown && (
+              <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+                <div className="p-3 border-b border-slate-50 bg-slate-50 flex justify-between items-center">
+                  <span className="font-bold text-slate-700 text-sm">
+                    Notificaciones ({notifications.length})
+                  </span>
+                  <button onClick={() => setShowNotifDropdown(false)}>
+                    <X
+                      size={16}
+                      className="text-slate-400 hover:text-slate-600"
+                    />
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">
+                      No tienes novedades pendientes.
+                    </div>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        onClick={() =>
+                          isAdmin ? navigate('/admin/postulaciones') : null
+                        }
+                        className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-start ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
+                      >
+                        <div
+                          className={`mt-1 h-2 w-2 rounded-full ${notif.status === 'Pendiente' ? 'bg-yellow-400' : notif.status === 'Aprobado' ? 'bg-green-500' : 'bg-red-500'}`}
+                        ></div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700 line-clamp-1">
+                            {notif.opportunity_title}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {isAdmin
+                              ? `Nuevo postulante (ID: ${notif.student_id})`
+                              : `Estado actualizado: ${notif.status}`}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                            <Calendar size={10} /> {notif.date}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {isAdmin && notifications.length > 0 && (
+                  <button
+                    onClick={() => navigate('/admin/postulaciones')}
+                    className="w-full py-2 bg-blue-50 text-blue-600 text-xs font-bold hover:bg-blue-100 transition-colors"
+                  >
+                    Ver todas las postulaciones
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ÍCONO DE USUARIO (SIN CAMBIOS) */}
+          <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shadow-sm">
+            <User size={20} />
+          </div>
         </div>
       </header>
 
@@ -255,8 +356,6 @@ const Dashboard = () => {
               colorBg="bg-purple-50"
               colorText="text-purple-600"
             />
-
-            {/* LINK A REPORTES */}
             <div
               onClick={() => navigate('/admin/postulaciones')}
               className="cursor-pointer transition-transform hover:scale-105 h-full"
