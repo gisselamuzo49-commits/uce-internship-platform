@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Building, Briefcase, Search, XCircle } from 'lucide-react';
+// 1. IMPORTAR EL COMPONENTE
+import Notification from '../components/Notification';
 
 const Opportunities = () => {
   const { authFetch, user } = useAuth();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(null);
-
-  // 1. ESTADO PARA LA BÚSQUEDA
   const [searchTerm, setSearchTerm] = useState('');
+
+  // 2. ESTADO PARA LA NOTIFICACIÓN
+  const [notification, setNotification] = useState({
+    message: null,
+    type: null,
+  });
 
   useEffect(() => {
     fetchOpportunities();
@@ -39,31 +45,44 @@ const Opportunities = () => {
       });
 
       if (res.ok) {
-        alert(`¡Te has postulado exitosamente a: ${opportunityTitle}!`);
+        // 3. REEMPLAZAR ALERT POR NOTIFICACIÓN DE ÉXITO
+        setNotification({
+          message: `¡Te has postulado exitosamente a: ${opportunityTitle}!`,
+          type: 'success',
+        });
       } else {
-        alert('Hubo un error al postular.');
+        // 3. REEMPLAZAR ALERT POR NOTIFICACIÓN DE ERROR
+        setNotification({
+          message: 'Hubo un error al postular.',
+          type: 'error',
+        });
       }
     } catch (error) {
       console.error(error);
-      alert('Error de conexión.');
+      setNotification({ message: 'Error de conexión.', type: 'error' });
     } finally {
       setApplying(null);
     }
   };
 
-  // 2. LÓGICA DE FILTRADO (MAGIA AQUÍ)
-  // Filtramos la lista original basándonos en lo que el usuario escribe
   const filteredOpportunities = opportunities.filter((op) => {
     const term = searchTerm.toLowerCase();
     return (
-      op.title.toLowerCase().includes(term) || // Busca en Título
-      op.company.toLowerCase().includes(term) || // Busca en Empresa
-      (op.location && op.location.toLowerCase().includes(term)) // Busca en Ubicación
+      op.title.toLowerCase().includes(term) ||
+      op.company.toLowerCase().includes(term) ||
+      (op.location && op.location.toLowerCase().includes(term))
     );
   });
 
   return (
-    <div className="max-w-6xl mx-auto p-8 animate-fade-in">
+    <div className="max-w-6xl mx-auto p-8 animate-fade-in relative">
+      {/* 4. RENDERIZAR EL COMPONENTE DE NOTIFICACIÓN */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification({ message: null, type: null })}
+      />
+
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">
@@ -74,7 +93,6 @@ const Opportunities = () => {
           </p>
         </div>
 
-        {/* 3. BARRA DE BÚSQUEDA FUNCIONAL */}
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-3 text-slate-400" size={20} />
           <input
@@ -82,9 +100,8 @@ const Opportunities = () => {
             placeholder="Buscar cargo, empresa o ciudad..."
             className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600 shadow-sm"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)} // Actualiza el estado al escribir
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-          {/* Botón para borrar búsqueda si hay texto */}
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
@@ -103,7 +120,6 @@ const Opportunities = () => {
           </p>
         </div>
       ) : filteredOpportunities.length === 0 ? (
-        // Muestra esto si no hay nada (o si la búsqueda no encuentra nada)
         <div className="p-12 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
           <Briefcase size={40} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-400 font-bold">
@@ -122,7 +138,6 @@ const Opportunities = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Renderizamos la lista FILTRADA */}
           {filteredOpportunities.map((op) => (
             <div
               key={op.id}

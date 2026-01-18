@@ -16,10 +16,11 @@ import {
   CheckCircle,
   LayoutDashboard,
   Bell,
-  ChevronRight,
 } from 'lucide-react';
+// 1. IMPORTAR NOTIFICACIÓN
+import Notification from '../components/Notification';
 
-// --- COMPONENTES AUXILIARES ---
+// ... (Componentes QuickActionCard, StatCard, ApplicationCard, ModalOverlay siguen igual)
 const QuickActionCard = ({ icon: Icon, title, primary = false, onClick }) => (
   <button
     onClick={onClick}
@@ -90,7 +91,6 @@ const ModalOverlay = ({ title, onClose, children }) => (
   </div>
 );
 
-// --- DASHBOARD PRINCIPAL ---
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
   const navigate = useNavigate();
@@ -100,10 +100,14 @@ const Dashboard = () => {
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  // --- NUEVO: ESTADOS PARA NOTIFICACIONES ---
   const [notifications, setNotifications] = useState([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+
+  // 2. ESTADO PARA LA NOTIFICACIÓN VISUAL
+  const [visualNotification, setVisualNotification] = useState({
+    message: null,
+    type: null,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -111,27 +115,16 @@ const Dashboard = () => {
         const res = await authFetch('http://localhost:5001/api/applications');
         if (res.ok) {
           const data = await res.json();
-
-          // --- LÓGICA DE NOTIFICACIONES ---
           if (isAdmin) {
-            // Admin: Notificar todas las que sean "Pendiente"
             const pending = data.filter((app) => app.status === 'Pendiente');
             setNotifications(pending);
-
-            // Lista del Dashboard (Solo las últimas 5)
             setListData(data.reverse().slice(0, 5));
           } else {
-            // Estudiante: Filtrar sus propias postulaciones
             const myApps = data.filter(
               (app) => String(app.student_id) === String(user.id)
             );
-
-            // Notificar actualizaciones (Aprobado o Rechazado)
-            // Nota: En un sistema real usaríamos una base de datos de "leídos",
-            // aquí mostramos el estado actual.
             const updates = myApps.filter((app) => app.status !== 'Pendiente');
             setNotifications(updates);
-
             setListData(myApps);
           }
         }
@@ -140,14 +133,17 @@ const Dashboard = () => {
       }
     };
     fetchData();
-  }, [user, isAdmin]);
+  }, [user, isAdmin, authFetch]); // Agregué authFetch a las dependencias
 
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
     const file = document.getElementById('cv-upload').files[0];
     if (!file) {
-      alert('Selecciona un PDF');
+      setVisualNotification({
+        message: 'Por favor, selecciona un archivo PDF.',
+        type: 'error',
+      });
       setUploading(false);
       return;
     }
@@ -165,15 +161,26 @@ const Dashboard = () => {
         body: formData,
       });
       if (res.ok) {
-        alert('¡CV subido con éxito!');
+        // 3. ÉXITO AL SUBIR CV
+        setVisualNotification({
+          message: '¡Tu Hoja de Vida se ha subido correctamente!',
+          type: 'success',
+        });
         setShowCVModal(false);
-        window.location.reload();
+        // Recargar después de un momento para que se vea la notificación
+        setTimeout(() => window.location.reload(), 2000);
       } else {
         const data = await res.json();
-        alert(data.error || 'Error al subir.');
+        setVisualNotification({
+          message: data.error || 'Error al subir el archivo.',
+          type: 'error',
+        });
       }
     } catch (error) {
-      alert('Error de conexión.');
+      setVisualNotification({
+        message: 'Error de conexión al intentar subir el archivo.',
+        type: 'error',
+      });
     } finally {
       setUploading(false);
     }
@@ -181,6 +188,13 @@ const Dashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8 relative min-h-screen">
+      {/* 4. RENDERIZAR NOTIFICACIÓN */}
+      <Notification
+        message={visualNotification.message}
+        type={visualNotification.type}
+        onClose={() => setVisualNotification({ message: null, type: null })}
+      />
+
       {/* MODALES */}
       {showCVModal && (
         <ModalOverlay
@@ -252,7 +266,7 @@ const Dashboard = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* --- NUEVO: CAMPANA DE NOTIFICACIONES --- */}
+          {/* CAMPANA DE NOTIFICACIONES */}
           <div className="relative">
             <button
               onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -290,7 +304,7 @@ const Dashboard = () => {
                         onClick={() =>
                           isAdmin ? navigate('/admin/postulaciones') : null
                         }
-                        className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-start ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
+                        className={`p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors flex gap-3 items-start ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
                       >
                         <div
                           className={`mt-1 h-2 w-2 rounded-full ${notif.status === 'Pendiente' ? 'bg-yellow-400' : notif.status === 'Aprobado' ? 'bg-green-500' : 'bg-red-500'}`}
@@ -324,7 +338,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* ÍCONO DE USUARIO (SIN CAMBIOS) */}
+          {/* ÍCONO DE USUARIO */}
           <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shadow-sm">
             <User size={20} />
           </div>
