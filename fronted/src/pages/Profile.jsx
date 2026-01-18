@@ -1,195 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Briefcase, Plus, Save, Edit, Trash2, X } from 'lucide-react';
+import { User, Mail, FileText, Download, AlertCircle } from 'lucide-react';
 
 const Profile = () => {
-  const { user, setUser } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [experience, setExperience] = useState([]);
+  const { user } = useAuth();
+  const [cvExists, setCvExists] = useState(false);
+  const [loadingCV, setLoadingCV] = useState(true);
 
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    career: user?.career || 'Ingeniería en Sistemas',
-    faculty: user?.faculty || 'Facultad de Ingeniería',
-    phone: user?.phone || '',
-    gpa: user?.gpa || '9.2',
-  });
-
-  const [newExp, setNewExp] = useState({ title: '', company: '', date: '' });
+  // CONVENCIÓN: La URL siempre es /api/cv/{id}
+  const cvUrl = `http://localhost:5001/api/cv/${user?.id}`;
 
   useEffect(() => {
-    const loadExp = async () => {
-      if (user?.id) {
-        const res = await fetch(
-          `http://localhost:5000/api/experience/${user.id}`
-        );
-        if (res.ok) setExperience(await res.json());
+    const checkCV = async () => {
+      if (!user) return;
+      try {
+        const res = await fetch(cvUrl, { method: 'HEAD' });
+        if (res.ok) {
+          setCvExists(true);
+        }
+      } catch (error) {
+        console.error('Error verificando CV');
+      } finally {
+        setLoadingCV(false);
       }
     };
-    loadExp();
-  }, [user]);
+    checkCV();
+  }, [user, cvUrl]);
 
-  const handleSaveProfile = async () => {
-    const res = await fetch(`http://localhost:5000/api/users/${user.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setUser(data);
-      localStorage.setItem('siiu_user', JSON.stringify(data));
-      setIsEditing(false);
-      alert('Perfil actualizado');
-    }
-  };
-
-  const handleAddExperience = async (e) => {
-    e.preventDefault();
-    const res = await fetch(`http://localhost:5000/api/experience`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newExp, user_id: user.id }),
-    });
-    if (res.ok) {
-      const saved = await res.json();
-      setExperience([...experience, saved]);
-      setIsModalOpen(false);
-      setNewExp({ title: '', company: '', date: '' });
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar registro?')) return;
-    const res = await fetch(`http://localhost:5000/api/experience/${id}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) setExperience(experience.filter((e) => e.id !== id));
-  };
+  if (!user) return <div className="p-10 text-center">Cargando perfil...</div>;
 
   return (
-    <div className="space-y-8 p-4 animate-fade-in">
-      {/* HEADER DE PERFIL */}
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex justify-between items-center">
-        <div className="flex items-center gap-6">
-          <div className="w-24 h-24 bg-[#0f172a] rounded-[2rem] flex items-center justify-center text-4xl font-black text-white">
-            {formData.name.charAt(0)}
-          </div>
-          <div>
-            {isEditing ? (
-              <input
-                className="text-2xl font-black border-b-2 border-indigo-600 outline-none"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
-            ) : (
-              <h1 className="text-2xl font-black text-[#0f172a] uppercase">
-                {formData.name}
-              </h1>
-            )}
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
-              {formData.career}
-            </p>
+    <div className="max-w-5xl mx-auto p-8 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 mb-8 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+        <div className="h-24 w-24 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 border-4 border-white shadow-lg">
+          <User size={48} />
+        </div>
+        <div>
+          <h1 className="text-3xl font-black text-slate-800">{user.name}</h1>
+          <p className="text-slate-500 font-medium flex items-center justify-center md:justify-start gap-2">
+            <Mail size={16} /> {user.email}
+          </p>
+          <div className="mt-2">
+            <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+              {user.role === 'student' ? 'Estudiante' : 'Administrador'}
+            </span>
           </div>
         </div>
-        <button
-          onClick={() => (isEditing ? handleSaveProfile() : setIsEditing(true))}
-          className="bg-[#0f172a] text-white px-6 py-3 rounded-xl font-bold flex gap-2"
-        >
-          {isEditing ? <Save size={18} /> : <Edit size={18} />}{' '}
-          {isEditing ? 'Guardar' : 'Editar'}
-        </button>
       </div>
 
-      {/* SECCIÓN EXPERIENCIA */}
-      <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="font-bold text-[#0f172a] flex items-center gap-2">
-            <Briefcase size={20} /> Experiencia Laboral
-          </h3>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold"
-          >
-            + AGREGAR
-          </button>
-        </div>
-        <div className="space-y-4">
-          {experience.map((exp) => (
-            <div
-              key={exp.id}
-              className="group flex justify-between p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all"
-            >
-              <div>
-                <h4 className="font-black text-sm uppercase">{exp.title}</h4>
-                <p className="text-xs text-indigo-600 font-bold">
-                  {exp.company} • {exp.date}
-                </p>
-              </div>
-              <button
-                onClick={() => handleDelete(exp.id)}
-                className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <FileText className="text-blue-600" /> Mi Hoja de Vida
+          </h2>
 
-      {/* MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm bg-black/20">
-          <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in zoom-in-95">
-            <h2 className="text-xl font-black mb-6">Nueva Experiencia</h2>
-            <form onSubmit={handleAddExperience} className="space-y-4">
-              <input
-                required
-                placeholder="Cargo"
-                className="w-full bg-slate-50 p-4 rounded-xl border"
-                value={newExp.title}
-                onChange={(e) =>
-                  setNewExp({ ...newExp, title: e.target.value })
-                }
-              />
-              <input
-                required
-                placeholder="Empresa"
-                className="w-full bg-slate-50 p-4 rounded-xl border"
-                value={newExp.company}
-                onChange={(e) =>
-                  setNewExp({ ...newExp, company: e.target.value })
-                }
-              />
-              <input
-                required
-                placeholder="Periodo"
-                className="w-full bg-slate-50 p-4 rounded-xl border"
-                value={newExp.date}
-                onChange={(e) => setNewExp({ ...newExp, date: e.target.value })}
-              />
-              <div className="flex gap-2 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#0f172a] text-white py-3 rounded-xl font-bold"
-                >
-                  Guardar
-                </button>
-              </div>
-            </form>
-          </div>
+          {cvExists && (
+            <a
+              href={cvUrl}
+              download={`CV_${user.name}.pdf`}
+              className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-100 transition flex items-center gap-2"
+            >
+              <Download size={16} /> Descargar PDF
+            </a>
+          )}
         </div>
-      )}
+
+        <div className="p-8 min-h-[400px] flex items-center justify-center bg-slate-100/50">
+          {loadingCV ? (
+            <p className="text-slate-400 font-bold">Buscando archivo...</p>
+          ) : cvExists ? (
+            <iframe
+              src={cvUrl}
+              className="w-full h-[600px] rounded-xl shadow-lg border border-slate-200 bg-white"
+              title="Visor de CV"
+            ></iframe>
+          ) : (
+            <div className="text-center text-slate-400">
+              <div className="bg-slate-200 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={40} className="text-slate-400" />
+              </div>
+              <p className="font-bold text-lg text-slate-600">
+                Aún no has subido tu Hoja de Vida.
+              </p>
+              <p className="text-sm">
+                Ve al "Dashboard" y usa el botón "Subir CV".
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
