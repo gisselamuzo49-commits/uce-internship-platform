@@ -75,8 +75,17 @@ class Opportunity(db.Model):
     company = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     location = db.Column(db.String(100), default='Quito')
+    deadline = db.Column(db.String(20), nullable=True) # Campo fecha
+
     def to_dict(self):
-        return {'id': self.id, 'title': self.title, 'company': self.company, 'description': self.description, 'location': self.location}
+        return {
+            'id': self.id, 
+            'title': self.title, 
+            'company': self.company, 
+            'description': self.description, 
+            'location': self.location,
+            'deadline': self.deadline 
+        }
 
 class Application(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -105,7 +114,7 @@ class Appointment(db.Model):
     date = db.Column(db.String(20), nullable=False)
     time = db.Column(db.String(20), nullable=False)
 
-# --- RUTAS ---
+# --- RUTAS DE AUTENTICACIÓN ---
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -125,7 +134,6 @@ def login():
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'error': 'Credenciales incorrectas'}), 401
     
-    # --- CAMBIO CRÍTICO: Identity ahora es STRING, no diccionario ---
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'user': user.to_dict()}), 200
 
@@ -133,7 +141,6 @@ def login():
 def google_login():
     try:
         token = request.json.get('token')
-        # Reemplaza con tu CLIENT_ID real
         CLIENT_ID = "282229570814-h2f8ok7uh91tddg8eltu6cfeeqi5u9j8.apps.googleusercontent.com"
         id_info = id_token.verify_oauth2_token(token, google_requests.Request(), audience=CLIENT_ID)
         user = User.query.filter_by(email=id_info['email']).first()
@@ -143,19 +150,43 @@ def google_login():
             db.session.add(user)
             db.session.commit()
             
-        # --- CAMBIO CRÍTICO: Identity ahora es STRING ---
         access_token = create_access_token(identity=str(user.id))
         return jsonify({'token': access_token, 'user': user.to_dict()}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-# --- RUTAS PROTEGIDAS (Adaptadas a String ID) ---
+# --- RUTAS DE CV (RECUPERADA) ---
+
+@app.route('/api/upload-cv', methods=['POST'])
+@jwt_required()
+def upload_cv():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    if file:
+        user_id = get_jwt_identity() # String '1'
+        filename = f"cv_{user_id}.pdf"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return jsonify({'message': 'CV subido correctamente'}), 200
+    return jsonify({'error': 'Error al guardar'}), 400
+
+@app.route('/api/cv/<int:student_id>', methods=['GET'])
+def get_cv(student_id):
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
+    except:
+        return jsonify({'error': 'CV not found'}), 404
+
+# --- RESTO DE RUTAS ---
 
 @app.route('/api/certifications', methods=['POST'])
 @jwt_required()
 def add_certification():
     try:
-        user_id = int(get_jwt_identity()) # Convertimos string a int
+        user_id = int(get_jwt_identity())
         data = request.json
         new_cert = Certification(
             title=data['title'], 
@@ -193,7 +224,8 @@ def handle_opportunities():
             title=data['title'], 
             company=data['company'], 
             description=data['description'],
-            location=data.get('location', 'Quito')
+            location=data.get('location', 'Quito'),
+            deadline=data.get('deadline')
         )
         db.session.add(new_opp)
         db.session.commit()
@@ -203,15 +235,24 @@ def handle_opportunities():
 @app.route('/api/applications', methods=['POST', 'GET'])
 @jwt_required()
 def handle_applications():
-    user_id = int(get_jwt_identity()) # Convertimos string a int
+    user_id = int(get_jwt_identity())
     
     if request.method == 'POST':
         data = request.json
         opp_id = data.get('opportunity_id') or data.get('id')
+        
+        opportunity = Opportunity.query.get(opp_id)
+        if not opportunity:
+            return jsonify({'error': 'Oferta no encontrada'}), 404
+
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        if opportunity.deadline and today > opportunity.deadline:
+            return jsonify({'error': '⛔ Esta oferta ha caducado.'}), 400
+
         new_app = Application(
             student_id=user_id,
             opportunity_id=int(opp_id), 
-            date=datetime.datetime.now().strftime("%Y-%m-%d")
+            date=today
         )
         db.session.add(new_app)
         db.session.commit()
@@ -237,7 +278,7 @@ def update_status(id):
 @app.route('/api/appointments', methods=['POST', 'GET'])
 @jwt_required()
 def handle_appointments():
-    user_id = int(get_jwt_identity()) # Convertimos string a int
+    user_id = int(get_jwt_identity())
     if request.method == 'POST':
         data = request.json
         new_apt = Appointment(
@@ -253,7 +294,6 @@ def handle_appointments():
     citas = Appointment.query.filter_by(student_id=user_id).all()
     return jsonify([{'id': c.id, 'date': c.date, 'time': c.time} for c in citas]), 200
 
-# --- PDF ROUTE ---
 @app.route('/api/admin/export-pdf/<int:student_id>', methods=['GET'])
 @jwt_required()
 def export_student_report(student_id):
@@ -263,18 +303,14 @@ def export_student_report(student_id):
             return jsonify({'error': 'Estudiante no encontrado'}), 404
         
         apps = Application.query.filter_by(student_id=student_id).all()
-        certs = Certification.query.filter_by(student_id=student_id).all()
-
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=letter)
         width, height = letter
 
-        # Encabezado
         c.setFont("Helvetica-Bold", 18)
         c.drawString(50, height - 50, "Universidad Central del Ecuador")
         c.line(50, height - 60, width - 50, height - 60)
         
-        # Datos
         c.setFont("Helvetica", 12)
         c.drawString(50, height - 90, f"Estudiante: {student.name}")
         c.drawString(50, height - 105, f"Email: {student.email}")
@@ -302,15 +338,7 @@ def export_student_report(student_id):
         return send_file(buffer, as_attachment=True, download_name=f"Reporte_{student.name}.pdf", mimetype='application/pdf')
 
     except Exception as e:
-        print(e)
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/cv/<int:student_id>', methods=['GET'])
-def get_cv(student_id):
-    try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
-    except:
-        return jsonify({'error': 'CV not found'}), 404
 
 if __name__ == '__main__':
     with app.app_context():
