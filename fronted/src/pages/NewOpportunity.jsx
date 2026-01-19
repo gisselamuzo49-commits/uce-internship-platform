@@ -1,167 +1,139 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import {
-  Building,
-  MapPin,
-  FileText,
-  Briefcase,
-  Save,
-  ArrowLeft,
-} from 'lucide-react';
 
 const NewOpportunity = () => {
-  const { authFetch } = useAuth();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-
   const [formData, setFormData] = useState({
     title: '',
     company: '',
-    location: '',
     description: '',
   });
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  // Usamos dos estados separados para controlar los colores
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    // Limpiamos mensajes anteriores
+    setSuccessMessage('');
+    setErrorMessage('');
+
     try {
-      // Usamos authFetch para que lleve el Token y pase por el puerto 5001
-      const res = await authFetch('http://localhost:5001/api/opportunities', {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5001/api/opportunities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(formData),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        alert('¡Vacante publicada exitosamente!');
-        navigate('/oportunidades'); // Redirigir a la lista
+        // ÉXITO: Ponemos el mensaje en la variable de éxito
+        setSuccessMessage('¡Oportunidad publicada correctamente!');
+        setFormData({ title: '', company: '', description: '' }); // Limpiar formulario
       } else {
-        alert('Error al crear la vacante. Revisa la consola.');
+        // ERROR: Ponemos el mensaje en la variable de error
+        setErrorMessage(data.error || 'Error al publicar la oportunidad');
       }
     } catch (error) {
-      console.error(error);
-      alert('Error de conexión con el servidor.');
+      setErrorMessage('Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 transition"
-      >
-        <ArrowLeft size={20} /> Volver
-      </button>
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <h2 className="text-3xl font-bold text-slate-800 mb-6 border-b pb-4">
+          Nueva Oportunidad
+        </h2>
 
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-        <h1 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
-          <Briefcase className="text-blue-600" /> Nueva Vacante
-        </h1>
+        {/* --- AQUÍ ESTÁ LA MAGIA DE LOS COLORES --- */}
+
+        {/* 1. Mensaje de ÉXITO (VERDE) */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded shadow-sm">
+            <p className="font-bold">¡Éxito!</p>
+            <p>{successMessage}</p>
+          </div>
+        )}
+
+        {/* 2. Mensaje de ERROR (ROJO) */}
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded shadow-sm">
+            <p className="font-bold">Error</p>
+            <p>{errorMessage}</p>
+          </div>
+        )}
+
+        {/* --- FIN DE LA MAGIA --- */}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Título */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">
-              Cargo / Título
+              Título del Puesto
             </label>
-            <div className="relative">
-              <Briefcase
-                className="absolute left-3 top-3 text-slate-400"
-                size={20}
-              />
-              <input
-                name="title"
-                required
-                placeholder="Ej: Desarrollador Junior"
-                className="w-full pl-10 p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                onChange={handleChange}
-              />
-            </div>
+            <input
+              type="text"
+              required
+              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              placeholder="Ej: Desarrollador Junior"
+              value={formData.title}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
+            />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Empresa */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Empresa
-              </label>
-              <div className="relative">
-                <Building
-                  className="absolute left-3 top-3 text-slate-400"
-                  size={20}
-                />
-                <input
-                  name="company"
-                  required
-                  placeholder="Ej: Banco Pichincha"
-                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            {/* Ubicación */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Ubicación
-              </label>
-              <div className="relative">
-                <MapPin
-                  className="absolute left-3 top-3 text-slate-400"
-                  size={20}
-                />
-                <input
-                  name="location"
-                  required
-                  placeholder="Ej: Quito, Av. Amazonas"
-                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Descripción */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">
-              Descripción del Puesto
+              Empresa / Institución
             </label>
-            <div className="relative">
-              <FileText
-                className="absolute left-3 top-3 text-slate-400"
-                size={20}
-              />
-              <textarea
-                name="description"
-                required
-                rows="4"
-                placeholder="Detalles de la oferta..."
-                className="w-full pl-10 p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                onChange={handleChange}
-              />
-            </div>
+            <input
+              type="text"
+              required
+              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              placeholder="Ej: Ministerio de Salud"
+              value={formData.company}
+              onChange={(e) =>
+                setFormData({ ...formData, company: e.target.value })
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Descripción
+            </label>
+            <textarea
+              required
+              rows="4"
+              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              placeholder="Detalles de la pasantía..."
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+            />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+            className={`w-full py-3 px-4 rounded-lg text-white font-bold transition-colors ${
+              loading
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
-            {loading ? (
-              'Publicando...'
-            ) : (
-              <>
-                <Save size={20} /> Confirmar Publicación
-              </>
-            )}
+            {loading ? 'Publicando...' : 'Publicar Oportunidad'}
           </button>
         </form>
       </div>

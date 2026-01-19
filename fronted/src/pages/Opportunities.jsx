@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Building, Briefcase, Search, XCircle } from 'lucide-react';
-// 1. IMPORTAR EL COMPONENTE
 import Notification from '../components/Notification';
 
 const Opportunities = () => {
   const { authFetch, user } = useAuth();
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState(null);
+  const [applying, setApplying] = useState(null); // Ahora guardaremos el ID aquí
   const [searchTerm, setSearchTerm] = useState('');
-
-  // 2. ESTADO PARA LA NOTIFICACIÓN
   const [notification, setNotification] = useState({
     message: null,
     type: null,
@@ -35,31 +32,34 @@ const Opportunities = () => {
     }
   };
 
-  const handleApply = async (opportunityTitle) => {
-    setApplying(opportunityTitle);
+  // 👇 LÓGICA CORREGIDA: Ahora usamos el ID de la oportunidad
+  const handleApply = async (op) => {
+    setApplying(op.id);
     try {
       const res = await authFetch('http://localhost:5001/api/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opportunity_title: opportunityTitle }),
+        body: JSON.stringify({ opportunity_id: op.id }), // <--- CAMBIO CLAVE
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        // 3. REEMPLAZAR ALERT POR NOTIFICACIÓN DE ÉXITO
         setNotification({
-          message: `¡Te has postulado exitosamente a: ${opportunityTitle}!`,
+          message: `¡Te has postulado exitosamente a: ${op.title}!`,
           type: 'success',
         });
       } else {
-        // 3. REEMPLAZAR ALERT POR NOTIFICACIÓN DE ERROR
         setNotification({
-          message: 'Hubo un error al postular.',
+          message: data.error || 'Hubo un error al postular.',
           type: 'error',
         });
       }
     } catch (error) {
-      console.error(error);
-      setNotification({ message: 'Error de conexión.', type: 'error' });
+      setNotification({
+        message: 'Error de conexión con el servidor.',
+        type: 'error',
+      });
     } finally {
       setApplying(null);
     }
@@ -76,7 +76,6 @@ const Opportunities = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-8 animate-fade-in relative">
-      {/* 4. RENDERIZAR EL COMPONENTE DE NOTIFICACIÓN */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -114,56 +113,43 @@ const Opportunities = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-20">
-          <p className="text-blue-600 font-bold animate-pulse">
-            Cargando ofertas...
-          </p>
+        <div className="text-center py-20 text-blue-600 font-bold animate-pulse">
+          Cargando ofertas...
         </div>
       ) : filteredOpportunities.length === 0 ? (
-        <div className="p-12 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
+        <div className="p-12 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold">
           <Briefcase size={40} className="mx-auto text-slate-300 mb-3" />
-          <p className="text-slate-400 font-bold">
+          <p>
             {searchTerm
               ? `No encontramos ofertas para "${searchTerm}"`
-              : 'No hay ofertas disponibles por el momento.'}
+              : 'No hay ofertas disponibles.'}
           </p>
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="text-blue-600 font-bold text-sm mt-2 hover:underline"
-            >
-              Borrar filtros
-            </button>
-          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOpportunities.map((op) => (
             <div
               key={op.id}
-              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition-all flex flex-col justify-between h-full group"
+              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition-all flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-start justify-between mb-4">
-                  <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <Building size={24} />
                   </div>
                   <span className="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-                    Full Time
+                    Pasantía
                   </span>
                 </div>
-
                 <h3 className="font-bold text-xl text-slate-800 mb-1">
                   {op.title}
                 </h3>
                 <p className="text-blue-600 font-bold text-sm mb-4">
                   {op.company}
                 </p>
-
                 <p className="text-slate-500 text-sm leading-relaxed mb-6 line-clamp-3">
-                  {op.description || 'Sin descripción detallada.'}
+                  {op.description || 'Sin descripción.'}
                 </p>
-
                 <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider mb-6">
                   <MapPin size={14} /> {op.location || 'Quito, EC'}
                 </div>
@@ -171,19 +157,19 @@ const Opportunities = () => {
 
               {user?.role === 'student' ? (
                 <button
-                  onClick={() => handleApply(op.title)}
-                  disabled={applying === op.title}
-                  className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                    applying === op.title
-                      ? 'bg-green-100 text-green-700 cursor-default'
-                      : 'bg-slate-900 text-white hover:bg-blue-600 hover:shadow-lg active:scale-95'
+                  onClick={() => handleApply(op)} // <-- Pasamos el objeto completo
+                  disabled={applying === op.id}
+                  className={`w-full py-3 rounded-xl font-bold transition-all ${
+                    applying === op.id
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-slate-900 text-white hover:bg-blue-600 active:scale-95'
                   }`}
                 >
-                  {applying === op.title ? 'Postulando...' : 'Postularme Ahora'}
+                  {applying === op.id ? 'Postulando...' : 'Postularme Ahora'}
                 </button>
               ) : (
-                <div className="w-full py-3 bg-slate-100 text-slate-400 rounded-xl font-bold text-center text-sm cursor-default">
-                  Vista de Administrador
+                <div className="w-full py-3 bg-slate-100 text-slate-400 rounded-xl font-bold text-center text-sm">
+                  Vista Admin
                 </div>
               )}
             </div>

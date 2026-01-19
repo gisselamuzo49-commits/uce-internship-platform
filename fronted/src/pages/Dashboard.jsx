@@ -17,10 +17,11 @@ import {
   LayoutDashboard,
   Bell,
   Clock,
+  Loader,
 } from 'lucide-react';
 import Notification from '../components/Notification';
 
-// --- COMPONENTES AUXILIARES (Sin cambios) ---
+// --- COMPONENTES AUXILIARES ---
 const QuickActionCard = ({
   icon: Icon,
   title,
@@ -128,19 +129,21 @@ const Dashboard = () => {
 
   const [listData, setListData] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [approvedApps, setApprovedApps] = useState([]); // Postulaciones aprobadas
-  const [myAppointments, setMyAppointments] = useState([]); // Citas ya agendadas
+  const [approvedApps, setApprovedApps] = useState([]);
+  const [myAppointments, setMyAppointments] = useState([]);
 
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [scheduling, setScheduling] = useState(false); // Estado de carga para cita
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+
+  // ESTADO PARA NOTIFICACIONES DE COLORES (VERDE/ROJO)
   const [visualNotification, setVisualNotification] = useState({
     message: null,
-    type: null,
+    type: null, // 'success' | 'error'
   });
 
-  // Estado para agendar cita
   const [appointmentData, setAppointmentData] = useState({
     appId: '',
     date: '',
@@ -150,7 +153,6 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Cargar Postulaciones
         const resApps = await authFetch(
           'http://localhost:5001/api/applications'
         );
@@ -168,12 +170,9 @@ const Dashboard = () => {
             setNotifications(
               myApps.filter((app) => app.status !== 'Pendiente')
             );
-            // Filtramos las aprobadas para el select de citas
             setApprovedApps(myApps.filter((app) => app.status === 'Aprobado'));
           }
         }
-
-        // 2. Cargar Citas existentes
         const resCitas = await authFetch(
           'http://localhost:5001/api/appointments'
         );
@@ -188,19 +187,25 @@ const Dashboard = () => {
     fetchData();
   }, [user, isAdmin, authFetch]);
 
-  // Manejo de CV (Igual que antes)
+  // Manejo de CV
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
     const file = document.getElementById('cv-upload').files[0];
+
     if (!file) {
-      setVisualNotification({ message: 'Selecciona un PDF', type: 'error' });
+      setVisualNotification({
+        message: 'Selecciona un PDF primero',
+        type: 'error',
+      });
       setUploading(false);
       return;
     }
+
     let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
     const formData = new FormData();
     formData.append('file', file);
+
     try {
       const res = await fetch('http://localhost:5001/api/upload-cv', {
         method: 'POST',
@@ -209,35 +214,42 @@ const Dashboard = () => {
       });
       if (res.ok) {
         setVisualNotification({
-          message: 'CV Subido con éxito',
+          message: '✅ CV Subido con éxito',
           type: 'success',
         });
         setShowCVModal(false);
-        setTimeout(() => window.location.reload(), 2000);
+        setTimeout(() => window.location.reload(), 1500);
       } else {
-        setVisualNotification({ message: 'Error al subir', type: 'error' });
+        setVisualNotification({
+          message: '❌ Error al subir CV',
+          type: 'error',
+        });
       }
     } catch {
-      setVisualNotification({ message: 'Error de conexión', type: 'error' });
+      setVisualNotification({ message: '❌ Error de conexión', type: 'error' });
     } finally {
       setUploading(false);
     }
   };
 
-  // --- NUEVO: Manejo de Agendar Cita ---
+  // --- LÓGICA DE AGENDAR CITA (CON MENSAJES DE COLOR) ---
   const handleScheduleSubmit = async (e) => {
     e.preventDefault();
+
     if (
       !appointmentData.appId ||
       !appointmentData.date ||
       !appointmentData.time
     ) {
       setVisualNotification({
-        message: 'Completa todos los campos',
+        message: '⚠️ Faltan datos: Selecciona postulación, fecha y hora.',
         type: 'error',
       });
       return;
     }
+
+    setScheduling(true); // Activa el spinner de carga
+
     try {
       const res = await authFetch('http://localhost:5001/api/appointments', {
         method: 'POST',
@@ -248,27 +260,39 @@ const Dashboard = () => {
           time: appointmentData.time,
         }),
       });
+
       const data = await res.json();
+
       if (res.ok) {
+        // --- ÉXITO (VERDE) ---
+        setShowCalendarModal(false); // Cerramos el modal primero
         setVisualNotification({
-          message: '¡Entrevista agendada!',
+          message: '✅ ¡Cita Agendada! Correo enviado.',
           type: 'success',
         });
-        setShowCalendarModal(false);
-        setMyAppointments([...myAppointments, data]); // Actualizar contador visualmente
+
+        // Esperamos 2 segundos para que leas el mensaje y recargamos
+        setTimeout(() => window.location.reload(), 2000);
       } else {
+        // --- ERROR (ROJO) ---
         setVisualNotification({
-          message: data.error || 'Error al agendar',
+          message: `❌ Error: ${data.error || 'No se pudo agendar'}`,
           type: 'error',
         });
       }
     } catch (error) {
-      setVisualNotification({ message: 'Error de conexión', type: 'error' });
+      setVisualNotification({
+        message: '❌ Error de conexión con el servidor.',
+        type: 'error',
+      });
+    } finally {
+      setScheduling(false); // Apaga el spinner
     }
   };
 
   return (
     <div className="max-w-7xl mx-auto p-8 relative min-h-screen">
+      {/* NOTIFICACIÓN FLOTANTE DE COLORES */}
       <Notification
         message={visualNotification.message}
         type={visualNotification.type}
@@ -301,7 +325,7 @@ const Dashboard = () => {
             <button
               type="submit"
               disabled={uploading}
-              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700"
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 disabled:bg-slate-400"
             >
               {uploading ? 'Subiendo...' : 'Guardar CV'}
             </button>
@@ -309,7 +333,7 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* --- NUEVO MODAL: AGENDAR CITA --- */}
+      {/* --- MODAL AGENDAR CITA --- */}
       {showCalendarModal && (
         <ModalOverlay
           title="📅 Agendar Entrevista"
@@ -317,15 +341,12 @@ const Dashboard = () => {
         >
           <form onSubmit={handleScheduleSubmit} className="space-y-4">
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800 mb-4">
-              <p>
-                ¡Felicidades! Has pasado a la siguiente etapa. Selecciona la
-                postulación y tu horario preferido.
-              </p>
+              <p>Selecciona la postulación aprobada y tu horario preferido.</p>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                Selecciona Postulación Aprobada
+                Postulación Aprobada
               </label>
               <select
                 className="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
@@ -383,9 +404,17 @@ const Dashboard = () => {
 
             <button
               type="submit"
-              className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition"
+              disabled={scheduling}
+              className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition flex items-center justify-center gap-2 disabled:bg-slate-400 disabled:cursor-wait"
             >
-              Confirmar Cita
+              {scheduling ? (
+                <>
+                  <Loader className="animate-spin" size={20} />
+                  Enviando correo...
+                </>
+              ) : (
+                'Confirmar Cita'
+              )}
             </button>
           </form>
         </ModalOverlay>
@@ -518,7 +547,6 @@ const Dashboard = () => {
               colorBg="bg-green-50"
               colorText="text-green-600"
             />
-            {/* AQUÍ ACTUALIZAMOS EL CONTADOR DE CITAS */}
             <StatCard
               icon={Clock}
               title="Entrevistas"
@@ -577,8 +605,6 @@ const Dashboard = () => {
                     title="Subir CV"
                     onClick={() => setShowCVModal(true)}
                   />
-
-                  {/* --- BOTÓN INTELIGENTE: AGENDAR CITA --- */}
                   <QuickActionCard
                     icon={Calendar}
                     title="Agendar Entrevista"
@@ -588,7 +614,7 @@ const Dashboard = () => {
                         : 'Requiere postulación aprobada'
                     }
                     onClick={() => setShowCalendarModal(true)}
-                    disabled={approvedApps.length === 0} // SOLO SE ACTIVA SI HAY APROBADAS
+                    disabled={approvedApps.length === 0}
                   />
                 </>
               )}
@@ -633,4 +659,5 @@ const Dashboard = () => {
     </div>
   );
 };
+
 export default Dashboard;

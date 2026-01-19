@@ -1,179 +1,169 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // Usamos tu contexto
-import { GoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../context/AuthContext';
+import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google'; // Importamos el botón oficial
+import { LogIn, Mail, Lock, AlertCircle, Loader } from 'lucide-react';
 
 const Login = () => {
+  const { login, googleLogin } = useAuth(); // <--- TRAEMOS LA NUEVA FUNCIÓN
   const navigate = useNavigate();
-  const { login } = useAuth(); // Usamos la función del contexto
 
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // --- LÓGICA 1: LOGIN CON CORREO/PASSWORD ---
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  // 1. LOGIN NORMAL (Correo y Clave)
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
+    const res = await login(formData.email, formData.password);
+    if (res.success) {
+      navigate('/dashboard');
+    } else {
+      setError(res.error || 'Credenciales incorrectas');
+    }
+    setLoading(false);
+  };
+
+  // 2. LOGIN CON GOOGLE (LA SOLUCIÓN)
+  const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
     setError('');
 
-    try {
-      // Usamos la función login de tu AuthContext
-      const res = await login(formData.email, formData.password);
+    // Llamamos a la función googleLogin que creamos en AuthContext
+    const res = await googleLogin(credentialResponse.credential);
 
-      if (res.success) {
-        navigate('/dashboard');
-      } else {
-        setError(res.error || 'Credenciales incorrectas');
-      }
-    } catch (err) {
-      setError('Error de conexión con el servidor');
-    } finally {
+    if (res.success) {
+      navigate('/dashboard');
+    } else {
+      setError(res.error || 'Error al iniciar sesión con Google');
       setLoading(false);
     }
   };
 
-  // --- LÓGICA 2: LOGIN CON GOOGLE ---
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const res = await fetch('http://localhost:5001/api/google-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: credentialResponse.credential }),
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        localStorage.setItem('siiu_user', JSON.stringify(data.user));
-        localStorage.setItem('token', data.token);
-        // Forzamos recarga o redirección directa
-        window.location.href = '/dashboard';
-      } else {
-        setError('Error Google: ' + data.error);
-      }
-    } catch (error) {
-      setError('Error de conexión con Google');
-    }
-  };
-
   return (
-    <div className="min-h-screen relative flex items-center justify-center font-sans overflow-hidden">
-      {/* 1. FONDO CON IMAGEN UCE (Mismo que Register) */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src="/teatro-uce.jpg"
-          alt="Teatro Universitario UCE"
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/60"></div>
-      </div>
-
-      {/* 2. LOGO SUPERIOR IZQUIERDA */}
-      <div className="absolute top-8 left-8 z-10">
-        <div className="text-white font-serif italic text-3xl font-bold tracking-tighter border-2 border-white rounded-full w-16 h-16 flex items-center justify-center">
-          Uce
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+        {/* Header */}
+        <div className="bg-blue-600 p-8 text-center">
+          <div className="bg-white/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto backdrop-blur-sm mb-4">
+            <LogIn size={32} className="text-white" />
+          </div>
+          <h2 className="text-2xl font-black text-white tracking-tight">
+            Bienvenido de nuevo
+          </h2>
+          <p className="text-blue-100 text-sm mt-1 font-medium">
+            Ingresa a tu cuenta institucional
+          </p>
         </div>
-      </div>
 
-      {/* 3. TÍTULO SUPERIOR CENTRO */}
-      <div className="absolute top-16 left-0 right-0 z-10 text-center text-white">
-        <h1 className="text-4xl font-bold tracking-widest mb-1">SIIU</h1>
-        <p className="text-sm font-light tracking-[0.3em] uppercase opacity-90">
-          LOGIN
-        </p>
-      </div>
+        {/* Body */}
+        <div className="p-8">
+          {error && (
+            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r flex items-center gap-3">
+              <AlertCircle size={20} className="text-red-500 flex-shrink-0" />
+              <p className="text-sm text-red-700 font-medium">{error}</p>
+            </div>
+          )}
 
-      {/* 4. TARJETA DE LOGIN (Estilo Oscuro) */}
-      <div className="relative z-20 w-full max-w-md bg-[#18181b]/90 backdrop-blur-md p-8 md:p-10 rounded-[2rem] shadow-2xl border border-white/10">
-        <h2 className="text-3xl text-white font-bold text-center mb-2">
-          Bienvenido
-        </h2>
-        <p className="text-gray-400 text-center mb-8 text-sm">
-          Ingresa tus credenciales institucionales
-        </p>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">
+                Correo Electrónico
+              </label>
+              <div className="relative group">
+                <Mail
+                  className="absolute left-3 top-3 text-slate-400 group-focus-within:text-blue-600 transition-colors"
+                  size={20}
+                />
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  placeholder="ejemplo@uce.edu.ec"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none font-medium text-slate-700"
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
 
-        {/* Mensaje de Error */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center font-bold">
-            {error}
-          </div>
-        )}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">
+                Contraseña
+              </label>
+              <div className="relative group">
+                <Lock
+                  className="absolute left-3 top-3 text-slate-400 group-focus-within:text-blue-600 transition-colors"
+                  size={20}
+                />
+                <input
+                  type="password"
+                  name="password"
+                  required
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none font-medium text-slate-700"
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email */}
-          <div className="space-y-1">
-            <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
-              Correo Institucional
-            </label>
-            <input
-              type="email"
-              placeholder="usuario@uce.edu.ec"
-              required
-              className="w-full bg-gray-200 text-gray-900 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500 transition-all"
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
-            />
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-95 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <Loader className="animate-spin" size={20} />
+              ) : (
+                'Iniciar Sesión'
+              )}
+            </button>
+          </form>
 
-          {/* Password */}
-          <div className="space-y-1">
-            <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              required
-              className="w-full bg-gray-200 text-gray-900 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500 transition-all"
-              value={formData.password}
-              onChange={(e) =>
-                setFormData({ ...formData, password: e.target.value })
-              }
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#5b5bf0] hover:bg-[#4a4ae0] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/40 transition-all transform hover:scale-[1.02] active:scale-95 mt-2"
-          >
-            {loading ? 'Ingresando...' : 'Iniciar Sesión'}
-          </button>
-        </form>
-
-        {/* --- SECCIÓN GOOGLE INTEGRADA --- */}
-        <div className="mt-8 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-1/3 border-t border-gray-600"></div>
-            <span className="text-xs text-gray-400 font-bold uppercase">
-              O usa Google
+          <div className="my-6 flex items-center gap-4">
+            <div className="h-px bg-slate-100 flex-1"></div>
+            <span className="text-xs font-bold text-slate-400 uppercase">
+              O continúa con
             </span>
-            <div className="w-1/3 border-t border-gray-600"></div>
+            <div className="h-px bg-slate-100 flex-1"></div>
           </div>
+
+          {/* BOTÓN DE GOOGLE (LÓGICA CORREGIDA) */}
           <div className="flex justify-center">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
-              onError={() => setError('Login con Google falló')}
-              theme="filled_black" // Tema oscuro para que combine
+              onError={() => setError('Falló el inicio de sesión con Google')}
+              useOneTap
+              theme="outline"
               shape="pill"
-              text="signin_with"
-              width="100%"
+              size="large"
+              text="continue_with"
+              width="320" // Ajuste para que ocupe el ancho
             />
           </div>
-        </div>
 
-        <div className="text-center border-t border-gray-700 pt-6">
-          <p className="text-gray-400 text-sm">
-            ¿No tienes cuenta? {/* ENLACE CORRECTO A REGISTER */}
-            <Link
-              to="/register"
-              className="text-indigo-400 font-bold hover:text-indigo-300 hover:underline transition-colors"
-            >
-              Regístrate aquí
-            </Link>
-          </p>
+          <div className="mt-8 text-center">
+            <p className="text-slate-500 text-sm font-medium">
+              ¿No tienes cuenta?{' '}
+              <Link
+                to="/register"
+                className="text-blue-600 font-bold hover:underline"
+              >
+                Regístrate aquí
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
