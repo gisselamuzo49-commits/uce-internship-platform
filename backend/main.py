@@ -14,23 +14,23 @@ try:
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
 except ImportError:
-    print("⚠️ Advertencia: Librerías de Google no encontradas. Ejecuta: pip install google-auth")
+    print("⚠️ Warning: Google Auth libraries not found.")
 
 app = Flask(__name__)
 CORS(app)
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN (No requiere cambios manuales) ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///uce_internship.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-uce'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# --- CONFIGURACIÓN EMAIL (Opcional) ---
+# --- CONFIGURACIÓN EMAIL (Opcional - Requiere App Password de 16 letras) ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'tucorreo@gmail.com' 
-app.config['MAIL_PASSWORD'] = 'tu_clave_de_16_letras' 
+app.config['MAIL_PASSWORD'] = 'tu_clave_16_letras' 
 app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 
 db = SQLAlchemy(app)
@@ -48,9 +48,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='student')
-    certifications = db.relationship('Certification', backref='student', lazy=True)
+    certifications = db.relationship('Certification', backref='student', lazy=True, cascade="all, delete-orphan")
     applications = db.relationship('Application', backref='student', lazy=True)
-    appointments = db.relationship('Appointment', backref='student', lazy=True)
 
     def to_dict(self):
         return {
@@ -92,24 +91,7 @@ class Appointment(db.Model):
     date = db.Column(db.String(20), nullable=False)
     time = db.Column(db.String(20), nullable=False)
 
-# --- UTILIDADES ---
-def send_async_email(app, msg):
-    with app.app_context():
-        try: mail.send(msg)
-        except Exception as e: print(f"Error mail: {e}")
-
 # --- RUTAS DE AUTENTICACIÓN ---
-
-@app.route('/api/register', methods=['POST'])
-def register():
-    data = request.json
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': 'El correo ya existe'}), 400
-    hashed_pw = generate_password_hash(data['password'], method='pbkdf2:sha256')
-    new_user = User(name=data['name'], email=data['email'], password=hashed_pw)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'message': 'Registrado'}), 201
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -117,8 +99,7 @@ def login():
     user = User.query.filter_by(email=data['email']).first()
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'error': 'Credenciales incorrectas'}), 401
-    token = create_access_token(identity=str(user.id))
-    return jsonify({'token': token, 'user': user.to_dict()}), 200
+    return jsonify({'token': create_access_token(identity=str(user.id)), 'user': user.to_dict()}), 200
 
 @app.route('/api/google-login', methods=['POST'])
 def google_login():
@@ -135,17 +116,47 @@ def google_login():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-# --- RUTAS DE OPORTUNIDADES Y POSTULACIONES ---
+# --- RUTAS DE PERFIL Y CERTIFICACIONES ---
+
+@app.route('/api/certifications', methods=['POST'])
+@jwt_required()
+def add_certification():
+    try:
+        user_id = get_jwt_identity()
+        data = request.json
+        new_cert = Certification(title=data['title'], institution=data['institution'], year=str(data['year']), student_id=int(user_id))
+        db.session.add(new_cert)
+        db.session.commit()
+        all_certs = Certification.query.filter_by(student_id=int(user_id)).all()
+        return jsonify({'certifications': [c.to_dict() for c in all_certs]}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/certifications/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_certification(id):
+    cert = Certification.query.get(id)
+    if cert:
+        db.session.delete(cert)
+        db.session.commit()
+    return jsonify({'message': 'Deleted'}), 200
+
+@app.route('/api/profile/<int:id>', methods=['GET'])
+@jwt_required()
+def get_profile(id):
+    user = User.query.get(id)
+    return jsonify(user.to_dict()) if user else (jsonify({'error': 'Not found'}), 404)
+
+# --- RUTAS DE OPORTUNIDADES Y GESTIÓN ---
 
 @app.route('/api/opportunities', methods=['GET', 'POST'])
-@jwt_required(optional=True)
 def handle_opportunities():
     if request.method == 'POST':
         data = request.json
         new_opp = Opportunity(title=data['title'], company=data['company'], description=data['description'])
         db.session.add(new_opp)
         db.session.commit()
-        return jsonify({'message': 'Creada'}), 201
+        return jsonify({'message': 'Created'}), 201
     return jsonify([o.to_dict() for o in Opportunity.query.all()]), 200
 
 @app.route('/api/applications', methods=['POST', 'GET'])
@@ -155,55 +166,39 @@ def handle_applications():
     if request.method == 'POST':
         data = request.json
         opp_id = data.get('opportunity_id') or data.get('id')
-        if Application.query.filter_by(student_id=int(user_id), opportunity_id=int(opp_id)).first():
-            return jsonify({'error': 'Ya postulado'}), 400
         new_app = Application(student_id=int(user_id), opportunity_id=int(opp_id), date=datetime.datetime.now().strftime("%Y-%m-%d"))
         db.session.add(new_app)
         db.session.commit()
-        return jsonify({'message': 'Éxito'}), 201
+        return jsonify({'message': 'OK'}), 201
     return jsonify([a.to_dict() for a in Application.query.all()]), 200
 
 @app.route('/api/applications/<int:id>', methods=['PUT'])
 @jwt_required()
 def update_status(id):
-    data = request.json
     ap = Application.query.get(id)
-    if not ap: return jsonify({'error': 'No existe'}), 404
-    ap.status = data.get('status')
-    db.session.commit()
-    return jsonify({'message': 'Actualizado'}), 200
-
-# --- RUTA DE CITAS (CORREGIDA) ---
+    if ap:
+        ap.status = request.json.get('status')
+        db.session.commit()
+    return jsonify({'message': 'Updated'}), 200
 
 @app.route('/api/appointments', methods=['POST'])
 @jwt_required()
 def create_appointment():
     try:
         data = request.json
-        user_id = get_jwt_identity()
-        new_apt = Appointment(
-            student_id=int(user_id),
-            application_id=int(data['application_id']),
-            date=data['date'],
-            time=data['time']
-        )
+        new_apt = Appointment(student_id=int(get_jwt_identity()), application_id=int(data['application_id']), date=data['date'], time=data['time'])
         db.session.add(new_apt)
         db.session.commit()
-        return jsonify({'message': 'Cita agendada'}), 201
+        return jsonify({'message': 'Scheduled'}), 201
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/profile/<int:id>', methods=['GET'])
-@jwt_required()
-def get_profile(id):
-    u = User.query.get(id)
-    return jsonify(u.to_dict()) if u else (jsonify({'error': 'No existe'}), 404)
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/api/cv/<int:student_id>', methods=['GET'])
 def get_cv(student_id):
-    try: return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
-    except: return jsonify({'error': 'No hay CV'}), 404
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
+    except:
+        return jsonify({'error': 'CV not found'}), 404
 
 if __name__ == '__main__':
     with app.app_context():

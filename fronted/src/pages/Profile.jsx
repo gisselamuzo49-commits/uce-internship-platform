@@ -1,287 +1,219 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import {
-  User,
-  Mail,
-  Lock,
-  Save,
-  ArrowLeft,
-  Plus,
-  Trash2,
-  Award,
-  Calendar,
-  Building2,
-} from 'lucide-react';
+import { User, Award, Plus, Trash2, ArrowLeft, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+// IMPORTANTE: Asegúrate de que la ruta del componente Notification sea correcta
+import Notification from '../components/Notification';
 
 const Profile = () => {
   const { user, authFetch, updateLocalUser } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
 
-  // Datos básicos
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
-
-  // Datos de Certificaciones (LinkedIn style)
+  // Estados para datos
   const [certifications, setCertifications] = useState([]);
   const [newCert, setNewCert] = useState({
     title: '',
     institution: '',
     year: '',
   });
+  const [loading, setLoading] = useState(false);
+
+  // ESTADO PARA NOTIFICACIONES (Mensajes de éxito/error)
+  const [notification, setNotification] = useState({
+    message: null,
+    type: null,
+  });
 
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        password: '',
-      });
-      // Si el usuario ya tiene certs cargadas en el login, las ponemos (o podemos hacer fetch)
-      if (user.certifications) setCertifications(user.certifications);
-    }
+    if (user?.certifications) setCertifications(user.certifications);
   }, [user]);
 
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await authFetch('http://localhost:5001/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        updateLocalUser(data.user);
-        alert('Datos actualizados');
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+  // Función para mostrar notificaciones temporalmente
+  const showMsg = (message, type) => {
+    setNotification({ message, type });
   };
 
   const handleAddCert = async (e) => {
     e.preventDefault();
     if (!newCert.title || !newCert.institution) return;
 
+    setLoading(true);
     try {
       const res = await authFetch('http://localhost:5001/api/certifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCert),
       });
+
       const data = await res.json();
+
       if (res.ok) {
-        setCertifications(data.certifications); // Actualizamos lista visual
-        setNewCert({ title: '', institution: '', year: '' }); // Limpiar form
+        setCertifications(data.certifications);
+        updateLocalUser({ ...user, certifications: data.certifications });
+        setNewCert({ title: '', institution: '', year: '' });
+        // ✅ ÉXITO EN VERDE
+        showMsg('¡Certificación guardada con éxito!', 'success');
+      } else {
+        // ❌ ERROR EN ROJO
+        showMsg(data.error || 'Error al guardar la certificación', 'error');
       }
     } catch (error) {
-      console.error(error);
+      showMsg('Error de conexión con el servidor', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteCert = async (id) => {
-    if (!window.confirm('¿Borrar este curso?')) return;
+    if (!window.confirm('¿Estás seguro de eliminar este curso?')) return;
+
     try {
       const res = await authFetch(
         `http://localhost:5001/api/certifications/${id}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+        }
       );
+
       if (res.ok) {
-        setCertifications(certifications.filter((c) => c.id !== id));
+        const updated = certifications.filter((c) => c.id !== id);
+        setCertifications(updated);
+        updateLocalUser({ ...user, certifications: updated });
+        // ✅ ÉXITO EN VERDE
+        showMsg('Certificación eliminada correctamente', 'success');
+      } else {
+        showMsg('No se pudo eliminar la certificación', 'error');
       }
     } catch (error) {
-      console.error(error);
+      showMsg('Error al procesar la solicitud', 'error');
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-fade-in">
+    <div className="max-w-4xl mx-auto p-8 animate-fade-in relative">
+      {/* COMPONENTE DE NOTIFICACIÓN */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification({ message: null, type: null })}
+      />
+
       <button
         onClick={() => navigate('/dashboard')}
-        className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 transition"
+        className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 transition font-bold"
       >
-        <ArrowLeft size={20} /> Volver
+        <ArrowLeft size={20} /> Volver al Panel
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA: DATOS PERSONALES */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="text-center mb-6">
-              <div className="h-24 w-24 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4 border-4 border-blue-50">
-                <User size={40} />
-              </div>
-              <h2 className="font-bold text-slate-800 text-xl">{user?.name}</h2>
-              <p className="text-sm text-slate-500 uppercase font-bold tracking-wider">
-                {user?.role === 'admin' ? 'Administrador' : 'Estudiante'}
-              </p>
-            </div>
-
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase">
-                  Nombre
-                </label>
-                <input
-                  name="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="w-full p-2 bg-slate-50 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase">
-                  Email
-                </label>
-                <input
-                  name="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="w-full p-2 bg-slate-50 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase">
-                  Nueva Clave
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className="w-full p-2 bg-slate-50 border rounded-lg text-sm"
-                  placeholder="Opcional"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-slate-900 text-white font-bold py-2 rounded-lg text-sm hover:bg-blue-600 transition"
-              >
-                {loading ? 'Guardando...' : 'Actualizar Datos'}
-              </button>
-            </form>
+        {/* INFO PERFIL */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center h-fit">
+          <div className="h-20 w-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4 border-4 border-blue-50">
+            <User size={40} />
+          </div>
+          <h2 className="font-bold text-xl text-slate-800">{user?.name}</h2>
+          <p className="text-slate-500 text-xs uppercase font-black tracking-widest mt-1">
+            {user?.role}
+          </p>
+          <div className="mt-4 pt-4 border-t border-slate-50 text-left">
+            <p className="text-xs font-bold text-slate-400 uppercase">
+              Correo Electrónico
+            </p>
+            <p className="text-sm text-slate-700 font-medium">{user?.email}</p>
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: CURSOS Y CERTIFICACIONES (Estilo LinkedIn) */}
-        <div className="lg:col-span-2">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 h-full">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                <Award className="text-orange-500" /> Educación y Cursos
-              </h2>
-            </div>
+        {/* SECCIÓN DE EDUCACIÓN */}
+        <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+          <h2 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+            <Award className="text-orange-500" /> Trayectoria Académica
+          </h2>
 
-            {/* Lista de Cursos */}
-            <div className="space-y-4 mb-8">
-              {certifications.length === 0 ? (
+          <div className="space-y-4 mb-8">
+            {certifications.length === 0 ? (
+              <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 <p className="text-slate-400 text-sm italic">
                   No has agregado certificaciones aún.
                 </p>
-              ) : (
-                certifications.map((cert) => (
-                  <div
-                    key={cert.id}
-                    className="flex justify-between items-start p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition"
-                  >
-                    <div className="flex gap-4">
-                      <div className="h-10 w-10 bg-white rounded-lg flex items-center justify-center text-blue-600 shadow-sm font-bold border border-slate-100">
-                        {cert.institution.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-800">
-                          {cert.title}
-                        </h3>
-                        <p className="text-sm text-slate-500">
-                          {cert.institution}
-                        </p>
-                        <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 mt-1 inline-block">
-                          Año: {cert.year}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteCert(cert.id)}
-                      className="text-slate-400 hover:text-red-500 p-2"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+              </div>
+            ) : (
+              certifications.map((cert) => (
+                <div
+                  key={cert.id}
+                  className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition group"
+                >
+                  <div>
+                    <h3 className="font-bold text-slate-800">{cert.title}</h3>
+                    <p className="text-sm text-slate-500">
+                      {cert.institution} — {cert.year}
+                    </p>
                   </div>
-                ))
-              )}
-            </div>
-
-            {/* Formulario Agregar */}
-            <div className="border-t border-slate-100 pt-6">
-              <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Plus size={16} /> Agregar Nueva
-              </h3>
-              <form
-                onSubmit={handleAddCert}
-                className="grid grid-cols-1 md:grid-cols-2 gap-4"
-              >
-                <div className="md:col-span-2">
-                  <input
-                    placeholder="Nombre del Curso / Título"
-                    className="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    value={newCert.title}
-                    onChange={(e) =>
-                      setNewCert({ ...newCert, title: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <input
-                    placeholder="Institución (ej: Coursera)"
-                    className="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    value={newCert.institution}
-                    onChange={(e) =>
-                      setNewCert({ ...newCert, institution: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <input
-                    placeholder="Año (ej: 2024)"
-                    className="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    value={newCert.year}
-                    onChange={(e) =>
-                      setNewCert({ ...newCert, year: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="md:col-span-2">
                   <button
-                    type="submit"
-                    className="w-full bg-blue-50 text-blue-600 font-bold py-3 rounded-xl hover:bg-blue-100 transition"
+                    onClick={() => handleDeleteCert(cert.id)}
+                    className="text-slate-300 hover:text-red-500 p-2 transition-colors"
                   >
-                    + Guardar Certificación
+                    <Trash2 size={18} />
                   </button>
                 </div>
-              </form>
-            </div>
+              ))
+            )}
           </div>
+
+          {/* FORMULARIO AGREGAR */}
+          <form
+            onSubmit={handleAddCert}
+            className="space-y-4 pt-6 border-t border-slate-100"
+          >
+            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider mb-2">
+              Agregar nuevo curso
+            </h3>
+            <input
+              placeholder="Título del curso o certificación"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              value={newCert.title}
+              onChange={(e) =>
+                setNewCert({ ...newCert, title: e.target.value })
+              }
+              required
+            />
+            <div className="flex gap-4">
+              <input
+                placeholder="Institución"
+                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={newCert.institution}
+                onChange={(e) =>
+                  setNewCert({ ...newCert, institution: e.target.value })
+                }
+                required
+              />
+              <input
+                placeholder="Año"
+                type="number"
+                className="w-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={newCert.year}
+                onChange={(e) =>
+                  setNewCert({ ...newCert, year: e.target.value })
+                }
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <Loader className="animate-spin" size={20} />
+              ) : (
+                <Plus size={20} />
+              )}
+              {loading ? 'Guardando...' : 'Guardar Certificación'}
+            </button>
+          </form>
         </div>
       </div>
     </div>
   );
 };
+
 export default Profile;
