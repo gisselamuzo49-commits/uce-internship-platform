@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google'; // <--- IMPORTAMOS GOOGLE
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,11 +11,11 @@ const Register = () => {
   });
   const [loading, setLoading] = useState(false);
 
+  // --- LÓGICA 1: REGISTRO CON CORREO/PASSWORD ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // IMPORTANTE: Puerto 5001
       const res = await fetch('http://localhost:5001/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,28 +25,51 @@ const Register = () => {
       const data = await res.json();
 
       if (res.ok) {
-        alert('¡Cuenta creada! Inicia sesión.');
-        navigate('/login');
+        alert('¡Cuenta creada con éxito! Ahora inicia sesión.');
+        navigate('/login'); // Redirigir al login para que entre
       } else {
         alert(data.error || 'Error al registrarse');
       }
     } catch (error) {
-      alert('Error de conexión (Puerto 5001)');
+      alert('Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }
   };
 
+  // --- LÓGICA 2: REGISTRO CON GOOGLE (AUTOMÁTICO) ---
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        // Si se registra con Google, entra directo al Dashboard
+        localStorage.setItem('siiu_user', JSON.stringify(data.user));
+        localStorage.setItem('token', data.token);
+        window.location.href = '/dashboard';
+      } else {
+        alert('Error Google: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error conexión:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen relative flex items-center justify-center font-sans overflow-hidden">
-      {/* 1. FONDO CON IMAGEN UCE (Igual que en Login) */}
+      {/* 1. FONDO CON IMAGEN UCE */}
       <div className="absolute inset-0 z-0">
         <img
           src="/teatro-uce.jpg"
           alt="Teatro Universitario UCE"
           className="w-full h-full object-cover"
         />
-        {/* Capa oscura para que resalte el formulario */}
+        {/* Capa oscura */}
         <div className="absolute inset-0 bg-black/60"></div>
       </div>
 
@@ -64,13 +88,13 @@ const Register = () => {
         </p>
       </div>
 
-      {/* 4. TARJETA DE REGISTRO (Estilo Oscuro) */}
+      {/* 4. TARJETA DE REGISTRO (Tu diseño oscuro) */}
       <div className="relative z-20 w-full max-w-md bg-[#18181b]/90 backdrop-blur-md p-8 md:p-10 rounded-[2rem] shadow-2xl border border-white/10">
-        <h2 className="text-3xl text-white font-bold text-center mb-8">
+        <h2 className="text-3xl text-white font-bold text-center mb-6">
           Crear Cuenta
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre */}
           <div className="space-y-1">
             <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
@@ -122,17 +146,38 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#5b5bf0] hover:bg-[#4a4ae0] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/40 transition-all transform hover:scale-[1.02] active:scale-95 mt-6"
+            className="w-full bg-[#5b5bf0] hover:bg-[#4a4ae0] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/40 transition-all transform hover:scale-[1.02] active:scale-95 mt-4"
           >
             {loading ? 'Registrando...' : 'Registrarse'}
           </button>
         </form>
 
-        <div className="mt-8 text-center border-t border-gray-700 pt-6">
+        {/* --- AQUÍ AGREGAMOS EL BOTÓN DE GOOGLE SIN ROMPER EL DISEÑO --- */}
+        <div className="mt-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-1/3 border-t border-gray-600"></div>
+            <span className="text-xs text-gray-400 font-bold uppercase">
+              O usa Google
+            </span>
+            <div className="w-1/3 border-t border-gray-600"></div>
+          </div>
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => console.log('Login Failed')}
+              theme="filled_black"
+              shape="pill"
+              text="signup_with"
+              width="100%"
+            />
+          </div>
+        </div>
+
+        <div className="text-center border-t border-gray-700 pt-4">
           <p className="text-gray-400 text-sm">
             ¿Ya tienes cuenta?{' '}
             <Link
-              to="/login"
+              to="/" // Asegúrate de que esta ruta sea la de tu Login (usualmente "/" o "/login")
               className="text-indigo-400 font-bold hover:text-indigo-300 hover:underline transition-colors"
             >
               Inicia Sesión aquí

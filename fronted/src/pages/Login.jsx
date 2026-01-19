@@ -1,48 +1,70 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../context/AuthContext'; // Usamos tu contexto
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [localLoading, setLocalLoading] = useState(false);
-
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { login } = useAuth(); // Usamos la función del contexto
 
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // --- LÓGICA 1: LOGIN CON CORREO/PASSWORD ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalLoading(true);
-    try {
-      // Aseguramos que el email sea texto (por si el autocompletar falla)
-      const emailVal = typeof email === 'object' ? email.email : email;
+    setLoading(true);
+    setError('');
 
-      const res = await login(emailVal, password);
+    try {
+      // Usamos la función login de tu AuthContext
+      const res = await login(formData.email, formData.password);
 
       if (res.success) {
         navigate('/dashboard');
       } else {
-        alert(res.error || 'Error al iniciar sesión');
+        setError(res.error || 'Credenciales incorrectas');
+      }
+    } catch (err) {
+      setError('Error de conexión con el servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- LÓGICA 2: LOGIN CON GOOGLE ---
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem('siiu_user', JSON.stringify(data.user));
+        localStorage.setItem('token', data.token);
+        // Forzamos recarga o redirección directa
+        window.location.href = '/dashboard';
+      } else {
+        setError('Error Google: ' + data.error);
       }
     } catch (error) {
-      alert('Error inesperado de conexión');
-    } finally {
-      setLocalLoading(false);
+      setError('Error de conexión con Google');
     }
   };
 
   return (
     <div className="min-h-screen relative flex items-center justify-center font-sans overflow-hidden">
-      {/* 1. IMAGEN DE FONDO ACTUALIZADA */}
+      {/* 1. FONDO CON IMAGEN UCE (Mismo que Register) */}
       <div className="absolute inset-0 z-0">
         <img
           src="/teatro-uce.jpg"
           alt="Teatro Universitario UCE"
           className="w-full h-full object-cover"
         />
-        {/* Capa negra semi-transparente para que se lea el texto */}
         <div className="absolute inset-0 bg-black/60"></div>
       </div>
 
@@ -57,70 +79,94 @@ const Login = () => {
       <div className="absolute top-16 left-0 right-0 z-10 text-center text-white">
         <h1 className="text-4xl font-bold tracking-widest mb-1">SIIU</h1>
         <p className="text-sm font-light tracking-[0.3em] uppercase opacity-90">
-          CONECTA
+          LOGIN
         </p>
       </div>
 
-      {/* 4. TARJETA DE LOGIN */}
+      {/* 4. TARJETA DE LOGIN (Estilo Oscuro) */}
       <div className="relative z-20 w-full max-w-md bg-[#18181b]/90 backdrop-blur-md p-8 md:p-10 rounded-[2rem] shadow-2xl border border-white/10">
-        <h2 className="text-3xl text-white font-bold text-center mb-8">
-          Sign in
+        <h2 className="text-3xl text-white font-bold text-center mb-2">
+          Bienvenido
         </h2>
+        <p className="text-gray-400 text-center mb-8 text-sm">
+          Ingresa tus credenciales institucionales
+        </p>
+
+        {/* Mensaje de Error */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center font-bold">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Campo Email */}
+          {/* Email */}
           <div className="space-y-1">
             <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
-              Email
+              Correo Institucional
             </label>
             <input
               type="email"
+              placeholder="usuario@uce.edu.ec"
               required
               className="w-full bg-gray-200 text-gray-900 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500 transition-all"
-              placeholder="ejemplo@uce.edu.ec"
-              value={typeof email === 'object' ? email.email : email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
             />
           </div>
 
-          {/* Campo Password */}
+          {/* Password */}
           <div className="space-y-1">
             <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
-              Password
+              Contraseña
             </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                className="w-full bg-gray-200 text-gray-900 rounded-lg px-4 py-3 pr-10 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500 transition-all"
-                placeholder="Ingresa tu contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
+            <input
+              type="password"
+              placeholder="••••••••"
+              required
+              className="w-full bg-gray-200 text-gray-900 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500 transition-all"
+              value={formData.password}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
+            />
           </div>
 
-          {/* Botón de Ingreso */}
           <button
             type="submit"
-            disabled={localLoading}
-            className="w-full bg-[#5b5bf0] hover:bg-[#4a4ae0] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/40 transition-all transform hover:scale-[1.02] active:scale-95 mt-4"
+            disabled={loading}
+            className="w-full bg-[#5b5bf0] hover:bg-[#4a4ae0] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/40 transition-all transform hover:scale-[1.02] active:scale-95 mt-2"
           >
-            {localLoading ? 'Cargando...' : 'Sign in'}
+            {loading ? 'Ingresando...' : 'Iniciar Sesión'}
           </button>
         </form>
 
-        {/* Enlace a Registro */}
-        <div className="mt-8 text-center border-t border-gray-700 pt-6">
+        {/* --- SECCIÓN GOOGLE INTEGRADA --- */}
+        <div className="mt-8 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-1/3 border-t border-gray-600"></div>
+            <span className="text-xs text-gray-400 font-bold uppercase">
+              O usa Google
+            </span>
+            <div className="w-1/3 border-t border-gray-600"></div>
+          </div>
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Login con Google falló')}
+              theme="filled_black" // Tema oscuro para que combine
+              shape="pill"
+              text="signin_with"
+              width="100%"
+            />
+          </div>
+        </div>
+
+        <div className="text-center border-t border-gray-700 pt-6">
           <p className="text-gray-400 text-sm">
-            ¿No tienes cuenta?{' '}
+            ¿No tienes cuenta? {/* ENLACE CORRECTO A REGISTER */}
             <Link
               to="/register"
               className="text-indigo-400 font-bold hover:text-indigo-300 hover:underline transition-colors"
