@@ -18,11 +18,15 @@ import {
   Bell,
   Clock,
   Loader,
-  MapPin, // <--- Nuevo icono importado
+  MapPin,
+  TrendingUp,
+  Award,
 } from 'lucide-react';
+// --- LIBRERÍA DE GRÁFICAS ---
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import Notification from '../components/Notification';
 
-// --- COMPONENTES AUXILIARES (SE MANTIENEN IGUAL) ---
+// --- COMPONENTES AUXILIARES ---
 const QuickActionCard = ({
   icon: Icon,
   title,
@@ -63,7 +67,7 @@ const QuickActionCard = ({
 );
 
 const StatCard = ({ icon: Icon, title, value, colorBg, colorText }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 h-full">
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 h-full hover:shadow-md transition-all">
     <div className={`p-4 rounded-xl ${colorBg} ${colorText}`}>
       <Icon size={28} strokeWidth={2} />
     </div>
@@ -79,8 +83,8 @@ const StatCard = ({ icon: Icon, title, value, colorBg, colorText }) => (
 const ApplicationCard = ({ title, subtitle, status, date }) => {
   const statusColors = {
     Pendiente: 'bg-yellow-100 text-yellow-700',
-    Aprobado: 'bg-green-100 text-green-700',
-    Rechazado: 'bg-red-100 text-red-700',
+    Aprobado: 'bg-emerald-100 text-emerald-700',
+    Rechazado: 'bg-rose-100 text-rose-700',
   };
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition-all">
@@ -133,17 +137,20 @@ const Dashboard = () => {
   const [approvedApps, setApprovedApps] = useState([]);
   const [myAppointments, setMyAppointments] = useState([]);
 
-  // --- ESTADOS DE MODALES ---
+  // Estados de Modales
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [showOppModal, setShowOppModal] = useState(false); // <--- NUEVO: Modal de Oportunidad
+  const [showOppModal, setShowOppModal] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [scheduling, setScheduling] = useState(false);
-  const [creatingOpp, setCreatingOpp] = useState(false); // <--- NUEVO: Loading crear oferta
+  const [creatingOpp, setCreatingOpp] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
-  // --- DATOS PARA NUEVA OPORTUNIDAD ---
+  // Estados de Gráficas
+  const [adminStats, setAdminStats] = useState([]);
+  const [studentScore, setStudentScore] = useState(0);
+
   const [oppData, setOppData] = useState({
     title: '',
     company: '',
@@ -156,36 +163,65 @@ const Dashboard = () => {
     message: null,
     type: null,
   });
-
   const [appointmentData, setAppointmentData] = useState({
     appId: '',
     date: '',
     time: '',
   });
 
+  const COLORS = ['#10B981', '#F59E0B', '#F43F5E']; // Verde, Amarillo, Rojo
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const resApps = await authFetch(
-          'http://localhost:5001/api/applications'
-        );
+        // --- AQUÍ ESTÁ EL ARREGLO CLAVE ---
+        // Si es admin usa la ruta global, si es estudiante la ruta personal
+        const endpoint = isAdmin
+          ? 'http://localhost:5001/api/admin/applications'
+          : 'http://localhost:5001/api/applications';
+
+        const resApps = await authFetch(endpoint);
+
         if (resApps.ok) {
           const data = await resApps.json();
+
           if (isAdmin) {
+            // --- ADMIN: Calcular Dona ---
             const pending = data.filter((app) => app.status === 'Pendiente');
+            const approved = data.filter((app) => app.status === 'Aprobado');
+            const rejected = data.filter((app) => app.status === 'Rechazado');
+
             setNotifications(pending);
             setListData(data.reverse().slice(0, 5));
+
+            // Datos para Recharts
+            setAdminStats([
+              { name: 'Aprobados', value: approved.length },
+              { name: 'Pendientes', value: pending.length },
+              { name: 'Rechazados', value: rejected.length },
+            ]);
           } else {
-            const myApps = data.filter(
-              (app) => String(app.student_id) === String(user.id)
-            );
+            // --- ESTUDIANTE: Calcular Nivel ---
+            // Si el backend devuelve todas (filtrado por token), usamos data directamente
+            const myApps = data;
+
             setListData(myApps);
             setNotifications(
               myApps.filter((app) => app.status !== 'Pendiente')
             );
             setApprovedApps(myApps.filter((app) => app.status === 'Aprobado'));
+
+            // Gamificación
+            let score = 20;
+            if (myApps.length > 0) score += 40;
+            if (user.certifications && user.certifications.length > 0)
+              score += 40;
+
+            setStudentScore(score);
           }
         }
+
+        // Cargar Citas
         const resCitas = await authFetch(
           'http://localhost:5001/api/appointments'
         );
@@ -200,12 +236,11 @@ const Dashboard = () => {
     fetchData();
   }, [user, isAdmin, authFetch]);
 
-  // --- 1. MANEJO DE CV ---
+  // --- HANDLERS ---
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
     const file = document.getElementById('cv-upload').files[0];
-
     if (!file) {
       setVisualNotification({
         message: 'Selecciona un PDF primero',
@@ -214,11 +249,9 @@ const Dashboard = () => {
       setUploading(false);
       return;
     }
-
     let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
     const formData = new FormData();
     formData.append('file', file);
-
     try {
       const res = await fetch('http://localhost:5001/api/upload-cv', {
         method: 'POST',
@@ -245,7 +278,6 @@ const Dashboard = () => {
     }
   };
 
-  // --- 2. AGENDAR CITA ---
   const handleScheduleSubmit = async (e) => {
     e.preventDefault();
     if (
@@ -288,7 +320,6 @@ const Dashboard = () => {
     }
   };
 
-  // --- 3. NUEVA: CREAR OPORTUNIDAD (Con Fecha) ---
   const handleCreateOpportunity = async (e) => {
     e.preventDefault();
     if (!oppData.title || !oppData.company || !oppData.description) {
@@ -298,15 +329,13 @@ const Dashboard = () => {
       });
       return;
     }
-
     setCreatingOpp(true);
     try {
       const res = await fetch('http://localhost:5001/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(oppData), // <--- Aquí ya va la fecha 'deadline'
+        body: JSON.stringify(oppData),
       });
-
       if (res.ok) {
         setVisualNotification({
           message: '✅ Oferta publicada correctamente',
@@ -320,7 +349,6 @@ const Dashboard = () => {
           deadline: '',
         });
         setShowOppModal(false);
-        // Opcional: Recargar para actualizar contadores
         setTimeout(() => window.location.reload(), 1500);
       } else {
         setVisualNotification({
@@ -329,14 +357,12 @@ const Dashboard = () => {
         });
       }
     } catch (error) {
-      console.error(error);
       setVisualNotification({ message: '❌ Error de conexión', type: 'error' });
     } finally {
       setCreatingOpp(false);
     }
   };
 
-  // Fecha de hoy para el atributo 'min' del calendario
   const today = new Date().toISOString().split('T')[0];
 
   return (
@@ -381,14 +407,13 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* --- MODAL AGENDAR CITA --- */}
+      {/* --- MODAL CITA --- */}
       {showCalendarModal && (
         <ModalOverlay
           title="📅 Agendar Entrevista"
           onClose={() => setShowCalendarModal(false)}
         >
           <form onSubmit={handleScheduleSubmit} className="space-y-4">
-            {/* ... (Contenido del formulario de cita igual que antes) ... */}
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800 mb-4">
               <p>Selecciona la postulación aprobada y tu horario preferido.</p>
             </div>
@@ -459,7 +484,7 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* --- NUEVO: MODAL PUBLICAR OFERTA --- */}
+      {/* --- MODAL OPORTUNIDAD --- */}
       {showOppModal && (
         <ModalOverlay
           title="📢 Publicar Nueva Vacante"
@@ -477,11 +502,10 @@ const Dashboard = () => {
                 onChange={(e) =>
                   setOppData({ ...oppData, title: e.target.value })
                 }
-                className="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full p-3 bg-slate-50 border rounded-xl outline-none"
                 required
               />
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
@@ -525,8 +549,6 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
-
-            {/* CAMPO DE FECHA DE CADUCIDAD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1 text-orange-600">
                 Fecha de Cierre (Opcional)
@@ -538,7 +560,7 @@ const Dashboard = () => {
                 />
                 <input
                   type="date"
-                  min={today} // <--- BLOQUEA FECHAS PASADAS
+                  min={today}
                   value={oppData.deadline}
                   onChange={(e) =>
                     setOppData({ ...oppData, deadline: e.target.value })
@@ -546,11 +568,7 @@ const Dashboard = () => {
                   className="w-full pl-9 p-3 bg-orange-50 border border-orange-200 rounded-xl outline-none focus:border-orange-500"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">
-                * Si no seleccionas fecha, la oferta no caducará.
-              </p>
             </div>
-
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                 Descripción
@@ -562,11 +580,10 @@ const Dashboard = () => {
                 onChange={(e) =>
                   setOppData({ ...oppData, description: e.target.value })
                 }
-                className="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full p-3 bg-slate-50 border rounded-xl outline-none"
                 required
               ></textarea>
             </div>
-
             <button
               type="submit"
               disabled={creatingOpp}
@@ -582,7 +599,7 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* HEADER (IGUAL QUE ANTES) */}
+      {/* HEADER */}
       <header className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative z-40">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
@@ -598,7 +615,6 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {/* Notificaciones y Avatar (Se mantienen igual) */}
           <div className="relative">
             <button
               onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -611,7 +627,6 @@ const Dashboard = () => {
             </button>
             {showNotifDropdown && (
               <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
-                {/* ... Contenido notificaciones ... */}
                 <div className="p-3 border-b border-slate-50 bg-slate-50">
                   <span className="font-bold text-slate-700 text-sm">
                     Notificaciones ({notifications.length})
@@ -636,7 +651,7 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* STATS (IGUAL QUE ANTES) */}
+      {/* STATS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {isAdmin ? (
           <>
@@ -650,7 +665,10 @@ const Dashboard = () => {
             <StatCard
               icon={Users}
               title="Postulantes"
-              value={listData.length}
+              value={
+                listData.reduce((acc, curr) => acc + (isAdmin ? 1 : 0), 0) ||
+                '0'
+              }
               colorBg="bg-green-50"
               colorText="text-green-600"
             />
@@ -676,7 +694,6 @@ const Dashboard = () => {
           </>
         ) : (
           <>
-            {/* Stats Estudiante */}
             <StatCard
               icon={Briefcase}
               title="Mis Postulaciones"
@@ -709,6 +726,159 @@ const Dashboard = () => {
         )}
       </div>
 
+      {/* --- GRÁFICAS INTERACTIVAS --- */}
+      <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {isAdmin ? (
+          // GRÁFICO ADMIN: DONA DE APROBACIÓN
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 col-span-3 lg:col-span-3 flex flex-col md:flex-row items-center justify-between">
+            <div className="mb-4 md:mb-0">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <TrendingUp className="text-blue-600" /> Tasa de Aprobación
+              </h3>
+              <p className="text-slate-500 text-sm">
+                Distribución de estados de las postulaciones actuales.
+              </p>
+
+              <div className="mt-4 space-y-2">
+                {adminStats.map((stat, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: COLORS[index] }}
+                    ></div>
+                    <span className="text-sm font-medium text-slate-600">
+                      {stat.name}:{' '}
+                      <span className="font-bold text-slate-900">
+                        {stat.value}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-full md:w-64 h-64">
+              {adminStats.reduce((a, b) => a + b.value, 0) > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={adminStats}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {adminStats.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-300 text-sm">
+                  Sin datos aún
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // GRÁFICO ESTUDIANTE: NIVEL DE PERFIL
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-2xl shadow-lg col-span-3 text-white flex flex-col md:flex-row items-center justify-between relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 transform translate-x-1/2 -translate-y-1/2"></div>
+
+            <div className="z-10 max-w-lg">
+              <h3 className="text-2xl font-black mb-2 flex items-center gap-2">
+                <Award className="text-yellow-400" /> Nivel de Perfil
+              </h3>
+              <p className="text-slate-300 mb-4">
+                Completa tu perfil para destacar ante las empresas. ¡Sigue así!
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <div
+                    className={`p-1 rounded-full ${studentScore >= 20 ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                  >
+                    <CheckCircle size={14} />
+                  </div>
+                  <span
+                    className={
+                      studentScore >= 20 ? 'text-white' : 'text-slate-500'
+                    }
+                  >
+                    Registro completado
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <div
+                    className={`p-1 rounded-full ${studentScore >= 60 ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                  >
+                    <CheckCircle size={14} />
+                  </div>
+                  <span
+                    className={
+                      studentScore >= 60 ? 'text-white' : 'text-slate-500'
+                    }
+                  >
+                    Primera postulación enviada
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <div
+                    className={`p-1 rounded-full ${studentScore >= 100 ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                  >
+                    <CheckCircle size={14} />
+                  </div>
+                  <span
+                    className={
+                      studentScore >= 100 ? 'text-white' : 'text-slate-500'
+                    }
+                  >
+                    Perfil Profesional (Cursos añadidos)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="z-10 w-48 h-48 relative flex items-center justify-center mt-6 md:mt-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { value: studentScore },
+                      { value: 100 - studentScore },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    startAngle={90}
+                    endAngle={-270}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    <Cell fill="#10B981" />
+                    <Cell fill="#334155" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute flex flex-col items-center">
+                <span className="text-4xl font-black">{studentScore}%</span>
+                <span className="text-xs uppercase tracking-widest text-slate-400">
+                  Completado
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ACCIONES Y LISTA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
@@ -719,12 +889,11 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {isAdmin ? (
                 <>
-                  {/* --- AQUÍ ESTÁ EL CAMBIO EN EL BOTÓN --- */}
                   <QuickActionCard
                     icon={PlusCircle}
                     title="Publicar Vacante"
                     primary
-                    onClick={() => setShowOppModal(true)} // <--- AHORA ABRE EL MODAL
+                    onClick={() => setShowOppModal(true)}
                   />
                   <QuickActionCard
                     icon={Users}
