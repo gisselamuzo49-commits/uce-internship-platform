@@ -11,6 +11,7 @@ import {
   X,
   Award,
   Eye,
+  Download, // <--- IMPORTANTE: Nuevo ícono importado
 } from 'lucide-react';
 
 const ApplicationsAdmin = () => {
@@ -30,7 +31,10 @@ const ApplicationsAdmin = () => {
 
   const fetchApplications = async () => {
     try {
-      const res = await authFetch('http://localhost:5001/api/applications');
+      // Usamos ruta de ADMIN para obtener nombres reales
+      const res = await authFetch(
+        'http://localhost:5001/api/admin/applications'
+      );
       if (res.ok) {
         const data = await res.json();
         setApplications(data.reverse());
@@ -78,7 +82,35 @@ const ApplicationsAdmin = () => {
     }
   };
 
-  // --- NUEVA FUNCIÓN: ABRIR MODAL DE PERFIL ---
+  // --- NUEVA FUNCIÓN: DESCARGAR REPORTE PDF ---
+  const handleDownloadReport = async (studentId, studentName) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(
+        `http://localhost:5001/api/admin/export-pdf/${studentId}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Reporte_${studentName.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        alert('No se pudo generar el reporte.');
+      }
+    } catch (error) {
+      console.error('Error descarga:', error);
+    }
+  };
+
   const handleOpenProfile = async (studentId) => {
     setShowProfileModal(true);
     setLoadingProfile(true);
@@ -107,11 +139,9 @@ const ApplicationsAdmin = () => {
         Gestión de Postulaciones
       </h1>
 
-      {/* --- MODAL PANTALLA SOBREPUESTA --- */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-            {/* Header Modal */}
             <div className="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 <User size={20} className="text-blue-600" /> Perfil del
@@ -125,7 +155,6 @@ const ApplicationsAdmin = () => {
               </button>
             </div>
 
-            {/* Body Modal */}
             <div className="p-6 overflow-y-auto">
               {loadingProfile ? (
                 <div className="py-10 text-center">
@@ -184,7 +213,6 @@ const ApplicationsAdmin = () => {
               )}
             </div>
 
-            {/* Footer Modal */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 text-right">
               <button
                 onClick={() => setShowProfileModal(false)}
@@ -197,7 +225,6 @@ const ApplicationsAdmin = () => {
         </div>
       )}
 
-      {/* --- LISTA DE POSTULACIONES --- */}
       {loading ? (
         <div className="text-center py-10">
           <Loader className="animate-spin mx-auto text-blue-600" />
@@ -223,10 +250,12 @@ const ApplicationsAdmin = () => {
                   <h3 className="font-bold text-slate-800 text-lg">
                     {app.opportunity_title}
                   </h3>
-                  <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-400 uppercase mt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs font-bold text-slate-400 uppercase mt-1">
                     <span className="flex items-center gap-1">
-                      <Briefcase size={12} /> ID: {app.student_id}
+                      <Briefcase size={12} />{' '}
+                      {app.student_name || `ID: ${app.student_id}`}
                     </span>
+                    <span className="hidden sm:inline">|</span>
                     <span className="flex items-center gap-1">
                       <Calendar size={12} /> {app.date}
                     </span>
@@ -235,7 +264,6 @@ const ApplicationsAdmin = () => {
               </div>
 
               <div className="flex items-center gap-3 border-l border-slate-100 pl-4">
-                {/* BOTÓN VER PERFIL (OJO) */}
                 <button
                   onClick={() => handleOpenProfile(app.student_id)}
                   className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition"
@@ -244,13 +272,26 @@ const ApplicationsAdmin = () => {
                   <Eye size={20} />
                 </button>
 
-                {/* BOTÓN VER CV */}
                 <button
                   onClick={() => handleViewCV(app.student_id)}
                   className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
-                  title="Ver PDF"
+                  title="Ver CV"
                 >
                   <FileText size={20} />
+                </button>
+
+                {/* --- BOTÓN DE DESCARGA PDF --- */}
+                <button
+                  onClick={() =>
+                    handleDownloadReport(
+                      app.student_id,
+                      app.student_name || 'Estudiante'
+                    )
+                  }
+                  className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition"
+                  title="Descargar Reporte PDF"
+                >
+                  <Download size={20} />
                 </button>
 
                 <div
@@ -266,14 +307,14 @@ const ApplicationsAdmin = () => {
                     <button
                       onClick={() => handleStatusChange(app.id, 'Aprobado')}
                       disabled={app.status === 'Aprobado'}
-                      className="p-2 rounded-full hover:bg-emerald-50 text-slate-300 hover:text-emerald-600"
+                      className="p-2 rounded-full hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 disabled:opacity-30"
                     >
                       <CheckCircle size={24} />
                     </button>
                     <button
                       onClick={() => handleStatusChange(app.id, 'Rechazado')}
                       disabled={app.status === 'Rechazado'}
-                      className="p-2 rounded-full hover:bg-rose-50 text-slate-300 hover:text-rose-600"
+                      className="p-2 rounded-full hover:bg-rose-50 text-slate-300 hover:text-rose-600 disabled:opacity-30"
                     >
                       <XCircle size={24} />
                     </button>
@@ -287,4 +328,5 @@ const ApplicationsAdmin = () => {
     </div>
   );
 };
+
 export default ApplicationsAdmin;

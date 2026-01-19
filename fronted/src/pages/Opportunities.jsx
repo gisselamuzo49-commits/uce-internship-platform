@@ -1,179 +1,176 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { MapPin, Building, Briefcase, Search, XCircle } from 'lucide-react';
-import Notification from '../components/Notification';
+import { useAuth } from '../context/AuthContext'; // <--- Usamos tu nuevo AuthContext
+import {
+  Briefcase,
+  MapPin,
+  Building,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react';
 
 const Opportunities = () => {
-  const { authFetch, user } = useAuth();
+  const { authFetch, user } = useAuth(); // Usamos authFetch que maneja el token automáticamente
   const [opportunities, setOpportunities] = useState([]);
+  const [myApplications, setMyApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState(null); // Ahora guardaremos el ID aquí
-  const [searchTerm, setSearchTerm] = useState('');
-  const [notification, setNotification] = useState({
-    message: null,
-    type: null,
-  });
+  const [applyingId, setApplyingId] = useState(null); // Para mostrar spinner en el botón
 
   useEffect(() => {
-    fetchOpportunities();
+    fetchData();
   }, []);
 
-  const fetchOpportunities = async () => {
+  const fetchData = async () => {
     try {
-      const res = await authFetch('http://localhost:5001/api/opportunities');
-      if (res.ok) {
-        const data = await res.json();
-        setOpportunities(data);
+      // 1. Cargar Ofertas
+      const oppRes = await fetch('http://localhost:5001/api/opportunities');
+      const oppData = await oppRes.json();
+
+      // 2. Cargar mis postulaciones (para saber a cuáles ya apliqué)
+      // Solo si el usuario está logueado
+      let appsData = [];
+      if (user) {
+        try {
+          const appRes = await authFetch(
+            'http://localhost:5001/api/applications'
+          );
+          if (appRes.ok) {
+            appsData = await appRes.json();
+          }
+        } catch (err) {
+          console.log('Usuario no logueado o error cargando aplicaciones');
+        }
       }
+
+      setOpportunities(oppData);
+      setMyApplications(appsData);
     } catch (error) {
-      console.error(error);
+      console.error('Error cargando datos:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // 👇 LÓGICA CORREGIDA: Ahora usamos el ID de la oportunidad
-  const handleApply = async (op) => {
-    setApplying(op.id);
+  // --- FUNCIÓN DE POSTULACIÓN CORREGIDA ---
+  const handleApply = async (opportunityId) => {
+    if (!user) {
+      alert('Debes iniciar sesión para postularte.');
+      return;
+    }
+
+    setApplyingId(opportunityId);
+
     try {
+      // Usamos authFetch: Ya incluye el token y el Content-Type correcto
       const res = await authFetch('http://localhost:5001/api/applications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opportunity_id: op.id }), // <--- CAMBIO CLAVE
+        body: JSON.stringify({
+          opportunity_id: opportunityId, // Asegúrate de enviar este nombre exacto
+        }),
       });
-
-      const data = await res.json();
 
       if (res.ok) {
-        setNotification({
-          message: `¡Te has postulado exitosamente a: ${op.title}!`,
-          type: 'success',
-        });
+        alert('✅ ¡Postulación enviada con éxito!');
+        // Recargar datos para actualizar el botón
+        fetchData();
       } else {
-        setNotification({
-          message: data.error || 'Hubo un error al postular.',
-          type: 'error',
-        });
+        const errorData = await res.json();
+        alert(
+          `❌ Error: ${errorData.error || 'No se pudo procesar la solicitud'}`
+        );
       }
     } catch (error) {
-      setNotification({
-        message: 'Error de conexión con el servidor.',
-        type: 'error',
-      });
+      console.error(error);
+      alert('Error de conexión con el servidor');
     } finally {
-      setApplying(null);
+      setApplyingId(null);
     }
   };
 
-  const filteredOpportunities = opportunities.filter((op) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      op.title.toLowerCase().includes(term) ||
-      op.company.toLowerCase().includes(term) ||
-      (op.location && op.location.toLowerCase().includes(term))
+  // Función auxiliar para saber si ya apliqué a una oferta
+  const hasApplied = (oppId) => {
+    return myApplications.some(
+      (app) =>
+        app.opportunity_title ===
+          opportunities.find((o) => o.id === oppId)?.title ||
+        app.opportunity_id === oppId
     );
-  });
+  };
 
   return (
-    <div className="max-w-6xl mx-auto p-8 animate-fade-in relative">
-      <Notification
-        message={notification.message}
-        type={notification.type}
-        onClose={() => setNotification({ message: null, type: null })}
-      />
-
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">
-            Oportunidades Laborales
-          </h1>
-          <p className="text-slate-500 font-medium">
-            Encuentra tu próxima pasantía o empleo.
-          </p>
-        </div>
-
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-3 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Buscar cargo, empresa o ciudad..."
-            className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600 shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
-            >
-              <XCircle size={16} />
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="max-w-6xl mx-auto p-8">
+      <h1 className="text-4xl font-black text-slate-800 mb-2">
+        Oportunidades Disponibles
+      </h1>
+      <p className="text-slate-500 mb-8">
+        Encuentra tu próxima pasantía profesional.
+      </p>
 
       {loading ? (
-        <div className="text-center py-20 text-blue-600 font-bold animate-pulse">
-          Cargando ofertas...
-        </div>
-      ) : filteredOpportunities.length === 0 ? (
-        <div className="p-12 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold">
-          <Briefcase size={40} className="mx-auto text-slate-300 mb-3" />
-          <p>
-            {searchTerm
-              ? `No encontramos ofertas para "${searchTerm}"`
-              : 'No hay ofertas disponibles.'}
-          </p>
-        </div>
+        <div className="text-center py-10">Cargando ofertas...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredOpportunities.map((op) => (
-            <div
-              key={op.id}
-              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition-all flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-start justify-between mb-4">
-                  <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <Building size={24} />
-                  </div>
-                  <span className="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-                    Pasantía
-                  </span>
-                </div>
-                <h3 className="font-bold text-xl text-slate-800 mb-1">
-                  {op.title}
-                </h3>
-                <p className="text-blue-600 font-bold text-sm mb-4">
-                  {op.company}
-                </p>
-                <p className="text-slate-500 text-sm leading-relaxed mb-6 line-clamp-3">
-                  {op.description || 'Sin descripción.'}
-                </p>
-                <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider mb-6">
-                  <MapPin size={14} /> {op.location || 'Quito, EC'}
-                </div>
-              </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {opportunities.map((opp) => {
+            const isApplied = hasApplied(opp.id);
 
-              {user?.role === 'student' ? (
-                <button
-                  onClick={() => handleApply(op)} // <-- Pasamos el objeto completo
-                  disabled={applying === op.id}
-                  className={`w-full py-3 rounded-xl font-bold transition-all ${
-                    applying === op.id
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-slate-900 text-white hover:bg-blue-600 active:scale-95'
-                  }`}
-                >
-                  {applying === op.id ? 'Postulando...' : 'Postularme Ahora'}
-                </button>
-              ) : (
-                <div className="w-full py-3 bg-slate-100 text-slate-400 rounded-xl font-bold text-center text-sm">
-                  Vista Admin
+            return (
+              <div
+                key={opp.id}
+                className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100 hover:shadow-xl transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-blue-50 rounded-xl">
+                      <Briefcase className="text-blue-600" size={24} />
+                    </div>
+                    {isApplied && (
+                      <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                        <CheckCircle size={12} /> Postulado
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-800 mb-1">
+                    {opp.title}
+                  </h3>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-slate-500 text-sm">
+                      <Building size={16} className="mr-2" /> {opp.company}
+                    </div>
+                    <div className="flex items-center text-slate-500 text-sm">
+                      <MapPin size={16} className="mr-2" />{' '}
+                      {opp.location || 'Quito'}
+                    </div>
+                  </div>
+
+                  <p className="text-slate-600 text-sm line-clamp-3 mb-6">
+                    {opp.description}
+                  </p>
                 </div>
-              )}
-            </div>
-          ))}
+
+                <button
+                  onClick={() => handleApply(opp.id)}
+                  disabled={isApplied || applyingId === opp.id}
+                  className={`w-full py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2
+                    ${
+                      isApplied
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20 active:scale-95'
+                    }
+                  `}
+                >
+                  {applyingId === opp.id ? (
+                    <span>Procesando...</span>
+                  ) : isApplied ? (
+                    'Ya te has postulado'
+                  ) : (
+                    'Postularme Ahora'
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

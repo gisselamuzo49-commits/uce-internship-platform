@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // 2. Login Normal (Email/Pass)
+  // 2. Login Normal
   const login = async (email, password) => {
     try {
       const res = await fetch('http://localhost:5001/api/login', {
@@ -42,42 +42,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- 3. NUEVA FUNCIÓN: LOGIN CON GOOGLE (¡ESTA FALTABA!) ---
+  // 3. Login Google
   const googleLogin = async (googleToken) => {
     try {
-      console.log('Enviando token a Backend...'); // Debug
       const res = await fetch('http://localhost:5001/api/google-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: googleToken }),
       });
 
-      // AQUÍ ES DONDE SUELE DAR EL ERROR '<' SI EL BACKEND FALLA
       const data = await res.json();
 
       if (res.ok) {
-        saveSession(data); // Reutilizamos la lógica de guardar
+        saveSession(data);
         return { success: true };
       } else {
-        return {
-          success: false,
-          error: data.error || 'Error al validar con Google',
-        };
+        return { success: false, error: data.error || 'Error Google' };
       }
     } catch (error) {
       console.error('Error Google Auth:', error);
-      return { success: false, error: 'Error de conexión con el servidor.' };
+      return { success: false, error: 'Error de conexión.' };
     }
   };
 
-  // Función auxiliar para guardar datos (DRY)
+  // Helper para guardar sesión
   const saveSession = (data) => {
     setUser(data.user);
     localStorage.setItem('siiu_user', JSON.stringify(data.user));
-    const tokenReal = data.token || data.access_token;
-    if (tokenReal) {
-      localStorage.setItem('token', tokenReal);
-    }
+    // Guardamos el token limpio
+    const token = data.token || data.access_token;
+    localStorage.setItem('token', token);
   };
 
   // 4. Logout
@@ -87,9 +81,11 @@ export const AuthProvider = ({ children }) => {
     window.location.href = '/login';
   };
 
-  // 5. Fetch Autenticado
+  // 5. Fetch Autenticado (MODIFICADO PARA NO SACARTE POR ERROR)
   const authFetch = async (url, options = {}) => {
     let token = localStorage.getItem('token');
+
+    // Limpieza de token por si acaso tiene comillas extra
     if (token) {
       token = token.replace(/^"|"$/g, '').trim();
     }
@@ -102,10 +98,18 @@ export const AuthProvider = ({ children }) => {
 
     try {
       let response = await fetch(url, { ...options, headers });
-      if (response.status === 401 || response.status === 422) {
-        console.warn('Sesión expirada. Cerrando sesión...');
+
+      // SOLO hacemos logout si es 401 (No autorizado)
+      if (response.status === 401) {
+        console.warn('Sesión caducada (401). Cerrando sesión...');
         logout();
       }
+
+      // Si es 500 (Error de Servidor), NO sacamos al usuario, solo avisamos
+      if (response.status === 500) {
+        console.error('Error interno del servidor (500). Revisa backend logs.');
+      }
+
       return response;
     } catch (error) {
       console.error('Error de red:', error);
@@ -119,7 +123,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    // ¡IMPORTANTE! Agregamos googleLogin al value para que Login.jsx pueda usarlo
     <AuthContext.Provider
       value={{
         user,
