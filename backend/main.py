@@ -7,10 +7,18 @@ from werkzeug.utils import secure_filename
 import os
 import datetime
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# --- LIBRERÍA PARA GENERAR PDF ---
+# --- LIBRERÍAS PARA PDF ---
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+
+# --- LIBRERÍAS PARA EMAIL (NUEVO) ---
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 CORS(app)
@@ -22,14 +30,20 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-uce'
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'uploads')
 
+# ==============================================================================
+# 📧 CONFIGURACIÓN DEL CORREO (PON TUS DATOS AQUÍ)
+# ==============================================================================
+SMTP_EMAIL = "siiuconecta@gmail.com"  # <--- Pon tu correo aquí
+SMTP_PASSWORD = "ypwkfoaeptqxjmpn" # <--- Pon la clave de 16 letras aquí
+# ==============================================================================
+
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# ================= MODELOS =================
-
+# --- MODELOS (Igual que antes) ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -58,15 +72,8 @@ class Opportunity(db.Model):
     location = db.Column(db.String(100), default='Quito')
     deadline = db.Column(db.String(20), nullable=True)
     vacancies = db.Column(db.Integer, default=1) 
-
     def to_dict(self):
-        return {
-            'id': self.id, 'title': self.title, 'company': self.company, 
-            'description': self.description, 'location': self.location, 
-            'deadline': self.deadline,
-            'vacancies': self.vacancies,
-            'applicants_count': len(self.applications) 
-        }
+        return {'id': self.id, 'title': self.title, 'company': self.company, 'description': self.description, 'location': self.location, 'deadline': self.deadline, 'vacancies': self.vacancies, 'applicants_count': len(self.applications)}
 
 class Application(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -75,7 +82,6 @@ class Application(db.Model):
     status = db.Column(db.String(20), default='Pendiente')
     date = db.Column(db.String(20), nullable=False)
     opportunity = db.relationship('Opportunity', backref='applications')
-    
     def to_dict(self):
         student = User.query.get(self.student_id)
         return {'id': self.id, 'opportunity_title': self.opportunity.title, 'company': self.opportunity.company, 'status': self.status, 'date': self.date, 'student_id': self.student_id, 'student_name': student.name if student else "Desconocido"}
@@ -99,6 +105,48 @@ class TutorRequest(db.Model):
         student = User.query.get(self.student_id)
         return {'id': self.id, 'student_name': student.name if student else "Desconocido", 'title': self.title, 'filename': self.filename, 'status': self.status, 'tutor_name': self.tutor_name, 'date': self.date}
 
+# ================= FUNCIÓN PARA ENVIAR CORREO =================
+def send_email_confirmation(to_email, student_name, company, date, time):
+    print(f"🚀 INICIANDO ENVÍO DE CORREO A: {to_email}...") 
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = "Confirmación de Entrevista - SIIU Conecta"
+
+        body = f"""
+        Hola {student_name},
+
+        Tu entrevista ha sido agendada exitosamente.
+        
+        Empresa: {company}
+        Fecha: {date}
+        Hora: {time}
+
+        Por favor, conéctate puntual.
+        
+        Atentamente,
+        Sistema de Pasantías UCE
+        """
+        msg.attach(MIMEText(body, 'plain'))
+
+        # --- CAMBIO IMPORTANTE AQUÍ ---
+        # Usamos SMTP normal en puerto 587 y luego activamos seguridad con starttls()
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20) 
+        server.set_debuglevel(1) # Esto imprimirá TODO el detalle técnico en la consola
+        
+        server.starttls() # <--- ESTO ES LO QUE ENCRIPTA LA CONEXIÓN
+        
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(SMTP_EMAIL, to_email, text)
+        server.quit()
+        
+        print(f"✅ ¡CORREO ENVIADO CON ÉXITO A {to_email}!")
+        return True
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        return False
 # ================= RUTAS =================
 
 @app.route('/api/register', methods=['POST'])
@@ -214,22 +262,16 @@ def get_cv(student_id):
     try: return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
     except: return jsonify({'error': 'CV not found'}), 404
 
-# --- REPORTES PDF MEJORADOS ---
-
-# 1. REPORTE TIPO CV (ATS-FRIENDLY)
+# --- REPORTES PDF ---
 @app.route('/api/admin/export-pdf/<int:student_id>', methods=['GET'])
 @jwt_required()
 def export_pdf(student_id):
     user = User.query.get(student_id)
     if not user: return jsonify({'error': 'Usuario no encontrado'}), 404
-    
-    # Buscar si tiene tutor asignado
     tutor_req = TutorRequest.query.filter_by(student_id=student_id, status='Aprobado').first()
 
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-    
-    # ENCABEZADO
     p.setFont("Helvetica-Bold", 18)
     p.drawString(50, 750, user.name)
     p.setFont("Helvetica", 12)
@@ -237,11 +279,8 @@ def export_pdf(student_id):
     p.drawString(50, 735, "Estudiante / Candidato")
     p.setFillColorRGB(0, 0, 0)
     p.drawString(50, 715, f"Email: {user.email}")
-    p.line(50, 700, 550, 700) # Línea divisoria
-
+    p.line(50, 700, 550, 700)
     y = 670
-    
-    # SECCIÓN: ESTADO DE PRÁCTICAS (TUTOR)
     p.setFont("Helvetica-Bold", 14)
     p.drawString(50, y, "PRÁCTICAS PRE-PROFESIONALES")
     y -= 20
@@ -254,15 +293,11 @@ def export_pdf(student_id):
         p.drawString(70, y, f"Documento Validado: {tutor_req.title}")
     else:
         p.drawString(70, y, "Estado: Pendiente de asignación de tutor.")
-    
     y -= 40
-
-    # SECCIÓN: EDUCACIÓN (CURSOS)
     p.setFont("Helvetica-Bold", 14)
     p.drawString(50, y, "FORMACIÓN Y CURSOS")
     y -= 25
     p.setFont("Helvetica", 12)
-    
     if user.certifications:
         for cert in user.certifications:
             p.drawString(70, y, f"• {cert.title}")
@@ -270,12 +305,11 @@ def export_pdf(student_id):
             p.drawString(85, y-12, f"{cert.institution} | {cert.year}")
             p.setFont("Helvetica", 12)
             y -= 30
-            if y < 100: # Nueva página si se acaba el espacio
+            if y < 100:
                 p.showPage()
                 y = 750
     else:
         p.drawString(70, y, "No hay certificaciones registradas.")
-    
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -283,48 +317,29 @@ def export_pdf(student_id):
     response.headers['Content-Type'] = 'application/pdf'
     return response
 
-# 2. NUEVO: CERTIFICADO DE ASIGNACIÓN (MEMORANDO)
 @app.route('/api/admin/export-assignment/<int:request_id>', methods=['GET'])
 @jwt_required()
 def export_assignment_pdf(request_id):
     req = TutorRequest.query.get(request_id)
     if not req or req.status != 'Aprobado': return jsonify({'error': 'No aprobado'}), 400
     student = User.query.get(req.student_id)
-
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-    
     p.setFont("Helvetica-Bold", 20)
     p.drawCentredString(300, 700, "MEMORANDO DE ASIGNACIÓN")
-    
     p.setFont("Helvetica", 12)
     p.drawString(100, 650, f"FECHA: {datetime.datetime.now().strftime('%Y-%m-%d')}")
     p.drawString(100, 630, f"PARA: {req.tutor_name}")
     p.drawString(100, 610, f"ASUNTO: Asignación de Tutoría de Prácticas")
-    
     p.line(100, 590, 500, 590)
-    
-    text = f"""
-    Por medio de la presente, se notifica la asignación formal como Tutor Académico
-    del estudiante {student.name}, identificado con correo {student.email}.
-    
-    El estudiante ha presentado la documentación requerida ('{req.title}'), la cual
-    ha sido revisada y aprobada por la coordinación.
-    
-    Se solicita iniciar el seguimiento de las prácticas pre-profesionales conforme
-    al reglamento institucional.
-    """
-    
+    text = f"""Por medio de la presente, se notifica la asignación formal como Tutor Académico del estudiante {student.name}, identificado con correo {student.email}. El estudiante ha presentado la documentación requerida ('{req.title}'), la cual ha sido revisada y aprobada por la coordinación. Se solicita iniciar el seguimiento de las prácticas pre-profesionales conforme al reglamento institucional."""
     text_object = p.beginText(100, 550)
     text_object.setFont("Helvetica", 12)
-    for line in text.split("\n"):
-        text_object.textLine(line.strip())
+    for line in text.split("\n"): text_object.textLine(line.strip())
     p.drawText(text_object)
-    
     p.setFont("Helvetica-Bold", 12)
     p.drawCentredString(300, 400, "_________________________")
     p.drawCentredString(300, 380, "Coordinación de Vinculación")
-    
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -332,16 +347,11 @@ def export_assignment_pdf(request_id):
     response.headers['Content-Type'] = 'application/pdf'
     return response
 
-# --- OPORTUNIDADES & APLICACIONES ---
 @app.route('/api/opportunities', methods=['GET', 'POST'])
 def handle_opportunities():
     if request.method == 'POST':
         data = request.json
-        new_opp = Opportunity(
-            title=data['title'], company=data['company'], 
-            description=data['description'], location=data.get('location', 'Quito'), 
-            deadline=data.get('deadline'), vacancies=int(data.get('vacancies', 1))
-        )
+        new_opp = Opportunity(title=data['title'], company=data['company'], description=data['description'], location=data.get('location', 'Quito'), deadline=data.get('deadline'), vacancies=int(data.get('vacancies', 1)))
         db.session.add(new_opp)
         db.session.commit()
         return jsonify({'message': 'Created'}), 201
@@ -355,16 +365,13 @@ def handle_applications():
         data = request.json
         opp_id = data.get('opportunity_id')
         opportunity = Opportunity.query.get(opp_id)
-        
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         if opportunity.deadline and today > opportunity.deadline: return jsonify({'error': 'Caducado'}), 400
         if len(opportunity.applications) >= opportunity.vacancies: return jsonify({'error': 'Lleno'}), 400
-
         new_app = Application(student_id=user_id, opportunity_id=int(opp_id), date=today)
         db.session.add(new_app)
         db.session.commit()
         return jsonify({'message': 'OK'}), 201
-
     apps = Application.query.filter_by(student_id=user_id).all()
     return jsonify([a.to_dict() for a in apps]), 200
 
@@ -380,15 +387,30 @@ def update_status(id):
     db.session.commit()
     return jsonify({'message': 'Updated'}), 200
 
+# --- CITA + ENVÍO DE CORREO (Ruta Modificada) ---
 @app.route('/api/appointments', methods=['POST', 'GET'])
 @jwt_required()
 def handle_appointments():
     user_id = int(get_jwt_identity())
     if request.method == 'POST':
         data = request.json
-        db.session.add(Appointment(student_id=user_id, application_id=int(data['application_id']), date=data['date'], time=data['time']))
+        app_id = int(data['application_id'])
+        
+        # 1. Guardar Cita
+        db.session.add(Appointment(student_id=user_id, application_id=app_id, date=data['date'], time=data['time']))
         db.session.commit()
-        return jsonify({'message': 'Scheduled'}), 201
+        
+        # 2. ENVIAR CORREO
+        # Obtenemos info extra para el correo
+        user = User.query.get(user_id)
+        application = Application.query.get(app_id)
+        company_name = application.opportunity.company if application else "la empresa"
+        
+        # Enviamos
+        email_sent = send_email_confirmation(user.email, user.name, company_name, data['date'], data['time'])
+        
+        return jsonify({'message': 'Scheduled', 'email_sent': email_sent}), 201
+        
     citas = Appointment.query.filter_by(student_id=user_id).all()
     return jsonify([{'id': c.id, 'date': c.date, 'time': c.time} for c in citas]), 200
 
