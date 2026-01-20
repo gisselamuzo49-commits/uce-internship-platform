@@ -1,144 +1,197 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import {
+  Briefcase,
+  MapPin,
+  AlignLeft,
+  Calendar,
+  Building,
+  PlusCircle,
+  Users,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const NewOpportunity = () => {
+  const { authFetch } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     title: '',
     company: '',
+    location: '',
+    deadline: '',
+    vacancies: 1, // Por defecto 1 vacante
     description: '',
   });
-
-  // Usamos dos estados separados para controlar los colores
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
-    // Limpiamos mensajes anteriores
-    setSuccessMessage('');
-    setErrorMessage('');
-
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5001/api/opportunities', {
+      const res = await authFetch('http://localhost:5001/api/opportunities', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-
-      const data = await res.json();
-
       if (res.ok) {
-        // ÉXITO: Ponemos el mensaje en la variable de éxito
-        setSuccessMessage('¡Oportunidad publicada correctamente!');
-        setFormData({ title: '', company: '', description: '' }); // Limpiar formulario
+        alert('✅ Oportunidad publicada');
+        navigate('/oportunidades');
       } else {
-        // ERROR: Ponemos el mensaje en la variable de error
-        setErrorMessage(data.error || 'Error al publicar la oportunidad');
+        alert('Error al publicar');
       }
     } catch (error) {
-      setErrorMessage('Error de conexión con el servidor');
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-        <h2 className="text-3xl font-bold text-slate-800 mb-6 border-b pb-4">
-          Nueva Oportunidad
-        </h2>
-
-        {/* --- AQUÍ ESTÁ LA MAGIA DE LOS COLORES --- */}
-
-        {/* 1. Mensaje de ÉXITO (VERDE) */}
-        {successMessage && (
-          <div className="mb-6 p-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded shadow-sm">
-            <p className="font-bold">¡Éxito!</p>
-            <p>{successMessage}</p>
+    <div className="max-w-3xl mx-auto p-8">
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+        <div className="bg-slate-900 p-6 text-white flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-lg">
+            <PlusCircle size={24} />
           </div>
-        )}
-
-        {/* 2. Mensaje de ERROR (ROJO) */}
-        {errorMessage && (
-          <div className="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded shadow-sm">
-            <p className="font-bold">Error</p>
-            <p>{errorMessage}</p>
-          </div>
-        )}
-
-        {/* --- FIN DE LA MAGIA --- */}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
-              Título del Puesto
-            </label>
-            <input
-              type="text"
-              required
-              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ej: Desarrollador Junior"
-              value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
-            />
+            <h1 className="text-2xl font-black">Publicar Nueva Vacante</h1>
+            <p className="text-slate-400 text-sm">Define cupos y fechas.</p>
           </div>
-
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
-              Empresa / Institución
-            </label>
-            <input
-              type="text"
-              required
-              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ej: Ministerio de Salud"
-              value={formData.company}
-              onChange={(e) =>
-                setFormData({ ...formData, company: e.target.value })
-              }
-            />
+        </div>
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                Título
+              </label>
+              <div className="relative">
+                <Briefcase
+                  className="absolute left-3 top-3.5 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  required
+                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                Empresa
+              </label>
+              <div className="relative">
+                <Building
+                  className="absolute left-3 top-3.5 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  required
+                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  onChange={(e) =>
+                    setFormData({ ...formData, company: e.target.value })
+                  }
+                />
+              </div>
+            </div>
           </div>
-
+          <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                Ubicación
+              </label>
+              <div className="relative">
+                <MapPin
+                  className="absolute left-3 top-3.5 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  required
+                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  onChange={(e) =>
+                    setFormData({ ...formData, location: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                Fecha Límite
+              </label>
+              <div className="relative">
+                <Calendar
+                  className="absolute left-3 top-3.5 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="date"
+                  required
+                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600"
+                  onChange={(e) =>
+                    setFormData({ ...formData, deadline: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            {/* INPUT DE VACANTES */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                N° Vacantes
+              </label>
+              <div className="relative">
+                <Users
+                  className="absolute left-3 top-3.5 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  onChange={(e) =>
+                    setFormData({ ...formData, vacancies: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          </div>
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
               Descripción
             </label>
-            <textarea
-              required
-              rows="4"
-              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Detalles de la pasantía..."
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-            />
+            <div className="relative">
+              <AlignLeft
+                className="absolute left-3 top-3.5 text-slate-400"
+                size={18}
+              />
+              <textarea
+                rows="5"
+                required
+                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+              ></textarea>
+            </div>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-3 px-4 rounded-lg text-white font-bold transition-colors ${
-              loading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {loading ? 'Publicando...' : 'Publicar Oportunidad'}
-          </button>
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all"
+            >
+              {loading ? '...' : 'Publicar Oportunidad'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
 };
-
 export default NewOpportunity;

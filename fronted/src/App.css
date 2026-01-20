@@ -1,42 +1,56 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import MainLayout from './layouts/MainLayout';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Opportunities from './pages/Opportunities';
+import NewOpportunity from './pages/NewOpportunity';
+import MyApplications from './pages/MyApplications';
+
+// --- NUEVOS COMPONENTES IMPORTADOS ---
+// Asegúrate de que los nombres de archivo coincidan con lo que creaste en los pasos anteriores
+import UserProfile from './pages/UserProfile'; // El perfil con la subida de documentos
+import AdminRequests from './pages/AdminRequests'; // La vista de admin con pestañas
+
+function App() {
+  return (
+    <GoogleOAuthProvider clientId="282229570814-h2f8ok7uh91tddg8eltu6cfeeqi5u9j8.apps.googleusercontent.com">
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            
+            <Route element={<MainLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/oportunidades" element={<Opportunities />} />
+              
+              {/* --- RUTA ACTUALIZADA: PERFIL CON SOLICITUD DE TUTOR --- */}
+              <Route path="/perfil" element={<UserProfile />} />
+
+              {/* --- RUTA ACTUALIZADA: GESTIÓN DE POSTULANTES (PESTAÑAS) --- */}
+              <Route
+                path="/admin/postulaciones"
+                element={<AdminRequests />}
+              />
+              
+              <Route
+                path="/admin/nueva-oportunidad"
+                element={<NewOpportunity />}
+              />
+              <Route path="/mis-postulaciones" element={<MyApplications />} />
+
+              {/* Redirección por defecto */}
+              <Route path="/" element={<Navigate to="/dashboard" />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </GoogleOAuthProvider>
+  );
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
+export default App;

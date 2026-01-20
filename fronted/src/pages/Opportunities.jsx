@@ -1,177 +1,278 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext'; // <--- Usamos tu nuevo AuthContext
+import { useAuth } from '../context/AuthContext';
 import {
   Briefcase,
   MapPin,
+  Calendar,
+  Search,
   Building,
-  Clock,
-  CheckCircle,
+  Users,
+  Trash2,
   AlertCircle,
+  CheckCircle,
+  ArrowRight,
+  Ban,
 } from 'lucide-react';
 
 const Opportunities = () => {
-  const { authFetch, user } = useAuth(); // Usamos authFetch que maneja el token automáticamente
+  const { user, authFetch } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [opportunities, setOpportunities] = useState([]);
-  const [myApplications, setMyApplications] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [applyingId, setApplyingId] = useState(null); // Para mostrar spinner en el botón
+  const [myApplications, setMyApplications] = useState([]);
 
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
-      // 1. Cargar Ofertas
-      const oppRes = await fetch('http://localhost:5001/api/opportunities');
-      const oppData = await oppRes.json();
-
-      // 2. Cargar mis postulaciones (para saber a cuáles ya apliqué)
-      // Solo si el usuario está logueado
-      let appsData = [];
-      if (user) {
-        try {
-          const appRes = await authFetch(
-            'http://localhost:5001/api/applications'
+      const res = await fetch('http://localhost:5001/api/opportunities');
+      if (res.ok) setOpportunities((await res.json()).reverse());
+      if (user && !isAdmin) {
+        const resApps = await authFetch(
+          'http://localhost:5001/api/applications'
+        );
+        if (resApps.ok)
+          setMyApplications(
+            (await resApps.json()).map((a) => a.opportunity_title)
           );
-          if (appRes.ok) {
-            appsData = await appRes.json();
-          }
-        } catch (err) {
-          console.log('Usuario no logueado o error cargando aplicaciones');
-        }
       }
-
-      setOpportunities(oppData);
-      setMyApplications(appsData);
     } catch (error) {
-      console.error('Error cargando datos:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- FUNCIÓN DE POSTULACIÓN CORREGIDA ---
-  const handleApply = async (opportunityId) => {
-    if (!user) {
-      alert('Debes iniciar sesión para postularte.');
-      return;
-    }
+  const handleDelete = (id) => {
+    if (window.confirm('¿Eliminar oferta?')) alert('Conectar endpoint DELETE.');
+  };
 
-    setApplyingId(opportunityId);
-
-    try {
-      // Usamos authFetch: Ya incluye el token y el Content-Type correcto
-      const res = await authFetch('http://localhost:5001/api/applications', {
-        method: 'POST',
-        body: JSON.stringify({
-          opportunity_id: opportunityId, // Asegúrate de enviar este nombre exacto
-        }),
-      });
-
-      if (res.ok) {
-        alert('✅ ¡Postulación enviada con éxito!');
-        // Recargar datos para actualizar el botón
-        fetchData();
-      } else {
-        const errorData = await res.json();
-        alert(
-          `❌ Error: ${errorData.error || 'No se pudo procesar la solicitud'}`
-        );
+  const handleApply = async (oppId) => {
+    if (!user) return alert('Inicia sesión primero');
+    if (window.confirm('¿Deseas postularte a esta oferta?')) {
+      try {
+        const res = await authFetch('http://localhost:5001/api/applications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ opportunity_id: oppId }),
+        });
+        if (res.ok) {
+          alert('✅ ¡Postulación enviada!');
+          fetchData();
+        } else {
+          // MANEJO DE ERRORES ESPECÍFICOS DEL BACKEND
+          const err = await res.json();
+          if (err.error === 'Caducado')
+            alert('⛔ ERROR: La fecha límite de esta oferta ya pasó.');
+          else if (err.error === 'Lleno')
+            alert(
+              '⛔ ERROR: Ya no quedan vacantes disponibles para esta oferta.'
+            );
+          else alert('Error al postular');
+        }
+      } catch (error) {
+        console.error(error);
       }
-    } catch (error) {
-      console.error(error);
-      alert('Error de conexión con el servidor');
-    } finally {
-      setApplyingId(null);
     }
   };
 
-  // Función auxiliar para saber si ya apliqué a una oferta
-  const hasApplied = (oppId) => {
-    return myApplications.some(
-      (app) =>
-        app.opportunity_title ===
-          opportunities.find((o) => o.id === oppId)?.title ||
-        app.opportunity_id === oppId
-    );
-  };
+  const filteredOpps = opportunities.filter(
+    (o) =>
+      o.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.company.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const isExpired = (dateString) =>
+    dateString && new Date(dateString) < new Date();
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
-      <h1 className="text-4xl font-black text-slate-800 mb-2">
-        Oportunidades Disponibles
-      </h1>
-      <p className="text-slate-500 mb-8">
-        Encuentra tu próxima pasantía profesional.
-      </p>
+    <div className="max-w-7xl mx-auto p-8 min-h-screen">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 uppercase">
+            {isAdmin ? 'Gestión de Vacantes' : 'Bolsa de Empleos'}
+          </h1>
+          <p className="text-slate-500 font-medium">Revisa vacantes y cupos.</p>
+        </div>
+        <div className="relative w-full md:w-96">
+          <Search
+            className="absolute left-3 top-3.5 text-slate-400"
+            size={20}
+          />
+          <input
+            type="text"
+            placeholder="Buscar..."
+            className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl shadow-sm outline-none"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
 
       {loading ? (
-        <div className="text-center py-10">Cargando ofertas...</div>
+        <div className="text-center py-20 text-slate-400">Cargando...</div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {opportunities.map((opp) => {
-            const isApplied = hasApplied(opp.id);
+        <>
+          {isAdmin ? (
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="p-5 text-slate-500 text-xs uppercase">
+                      Oportunidad
+                    </th>
+                    <th className="p-5 text-slate-500 text-xs uppercase">
+                      Fecha Límite
+                    </th>
+                    <th className="p-5 text-slate-500 text-xs uppercase text-center">
+                      Ocupación (Cupos)
+                    </th>
+                    <th className="p-5 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredOpps.map((opp) => {
+                    const expired = isExpired(opp.deadline);
+                    const isFull = opp.applicants_count >= opp.vacancies;
+                    return (
+                      <tr key={opp.id} className="hover:bg-slate-50 transition">
+                        <td className="p-5">
+                          <p className="font-bold text-slate-800">
+                            {opp.title}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {opp.company} • {opp.location}
+                          </p>
+                        </td>
+                        <td className="p-5">
+                          <div
+                            className={`flex items-center gap-2 text-sm font-bold ${expired ? 'text-rose-500' : 'text-emerald-600'}`}
+                          >
+                            <Calendar size={16} /> {opp.deadline || 'N/A'}{' '}
+                            {expired && (
+                              <span className="text-[10px] bg-rose-100 px-2 rounded-full">
+                                CADUCADO
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-5 text-center">
+                          <div
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg border font-bold ${isFull ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}
+                          >
+                            <Users size={16} /> {opp.applicants_count} /{' '}
+                            {opp.vacancies}
+                          </div>
+                        </td>
+                        <td className="p-5 text-right">
+                          <button
+                            onClick={() => handleDelete(opp.id)}
+                            className="text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredOpps.map((opp) => {
+                const applied = myApplications.includes(opp.title);
+                const expired = isExpired(opp.deadline);
+                const isFull = opp.applicants_count >= opp.vacancies;
 
-            return (
-              <div
-                key={opp.id}
-                className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100 hover:shadow-xl transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-blue-50 rounded-xl">
-                      <Briefcase className="text-blue-600" size={24} />
-                    </div>
-                    {isApplied && (
-                      <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                        <CheckCircle size={12} /> Postulado
-                      </span>
+                return (
+                  <div
+                    key={opp.id}
+                    className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-xl transition-all flex flex-col h-full group relative overflow-hidden"
+                  >
+                    {(expired || isFull) && (
+                      <div className="absolute inset-0 bg-slate-50/50 z-10 pointer-events-none" />
                     )}
-                  </div>
-
-                  <h3 className="text-xl font-bold text-slate-800 mb-1">
-                    {opp.title}
-                  </h3>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-slate-500 text-sm">
-                      <Building size={16} className="mr-2" /> {opp.company}
+                    <div className="flex justify-between items-start mb-4 relative z-20">
+                      <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
+                        <Briefcase size={24} />
+                      </div>
+                      {applied ? (
+                        <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                          <CheckCircle size={12} /> Enviada
+                        </span>
+                      ) : expired ? (
+                        <span className="bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                          <AlertCircle size={12} /> Cerrada
+                        </span>
+                      ) : isFull ? (
+                        <span className="bg-rose-100 text-rose-600 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                          <Ban size={12} /> Lleno
+                        </span>
+                      ) : (
+                        <span className="bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">
+                          Activa
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center text-slate-500 text-sm">
-                      <MapPin size={16} className="mr-2" />{' '}
-                      {opp.location || 'Quito'}
+                    <h3 className="text-xl font-bold text-slate-800 mb-1 relative z-20">
+                      {opp.title}
+                    </h3>
+                    <p className="text-slate-500 text-sm mb-4 relative z-20">
+                      {opp.company}
+                    </p>
+
+                    {/* BARRA DE PROGRESO DE VACANTES */}
+                    <div className="mb-4 relative z-20">
+                      <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                        <span>Cupos:</span>
+                        <span
+                          className={isFull ? 'text-rose-500' : 'text-blue-600'}
+                        >
+                          {opp.applicants_count} / {opp.vacancies}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${isFull ? 'bg-rose-500' : 'bg-blue-500'}`}
+                          style={{
+                            width: `${Math.min((opp.applicants_count / opp.vacancies) * 100, 100)}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <p className="text-slate-600 text-sm mb-6 line-clamp-3 flex-grow relative z-20">
+                      {opp.description}
+                    </p>
+                    <div className="mt-auto relative z-20">
+                      <button
+                        onClick={() => handleApply(opp.id)}
+                        disabled={applied || expired || isFull}
+                        className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${applied ? 'bg-emerald-50 text-emerald-600' : expired || isFull ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-blue-600 shadow-lg'}`}
+                      >
+                        {applied ? (
+                          'Ya te has postulado'
+                        ) : expired ? (
+                          'Oferta Caducada'
+                        ) : isFull ? (
+                          'Vacantes Agotadas'
+                        ) : (
+                          <>
+                            Postularme Ahora <ArrowRight size={16} />
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
-
-                  <p className="text-slate-600 text-sm line-clamp-3 mb-6">
-                    {opp.description}
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => handleApply(opp.id)}
-                  disabled={isApplied || applyingId === opp.id}
-                  className={`w-full py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2
-                    ${
-                      isApplied
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                        : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20 active:scale-95'
-                    }
-                  `}
-                >
-                  {applyingId === opp.id ? (
-                    <span>Procesando...</span>
-                  ) : isApplied ? (
-                    'Ya te has postulado'
-                  ) : (
-                    'Postularme Ahora'
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
