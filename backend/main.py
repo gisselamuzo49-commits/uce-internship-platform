@@ -7,15 +7,17 @@ from werkzeug.utils import secure_filename
 import os
 import datetime
 import io
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests # Librería para peticiones externas
+
+# --- LIBRERÍAS DE GOOGLE (RESTAURADAS) ---
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 # --- LIBRERÍAS PARA PDF ---
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
-# --- LIBRERÍAS PARA EMAIL (NUEVO) ---
+# --- LIBRERÍAS PARA EMAIL ---
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -33,8 +35,8 @@ app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'uploads')
 # ==============================================================================
 # 📧 CONFIGURACIÓN DEL CORREO (PON TUS DATOS AQUÍ)
 # ==============================================================================
-SMTP_EMAIL = "siiuconecta@gmail.com"  # <--- Pon tu correo aquí
-SMTP_PASSWORD = "ypwkfoaeptqxjmpn" # <--- Pon la clave de 16 letras aquí
+SMTP_EMAIL = "siiuconecta@gmail.com"  # <--- Pon tu correo real aquí
+SMTP_PASSWORD = "ypwkfoaeptqxjmpn" # <--- Pon tu clave de 16 letras aquí
 # ==============================================================================
 
 db = SQLAlchemy(app)
@@ -43,7 +45,8 @@ jwt = JWTManager(app)
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# --- MODELOS (Igual que antes) ---
+# ================= MODELOS =================
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -72,8 +75,14 @@ class Opportunity(db.Model):
     location = db.Column(db.String(100), default='Quito')
     deadline = db.Column(db.String(20), nullable=True)
     vacancies = db.Column(db.Integer, default=1) 
+
     def to_dict(self):
-        return {'id': self.id, 'title': self.title, 'company': self.company, 'description': self.description, 'location': self.location, 'deadline': self.deadline, 'vacancies': self.vacancies, 'applicants_count': len(self.applications)}
+        return {
+            'id': self.id, 'title': self.title, 'company': self.company, 
+            'description': self.description, 'location': self.location, 
+            'deadline': self.deadline, 'vacancies': self.vacancies,
+            'applicants_count': len(self.applications) 
+        }
 
 class Application(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -82,6 +91,7 @@ class Application(db.Model):
     status = db.Column(db.String(20), default='Pendiente')
     date = db.Column(db.String(20), nullable=False)
     opportunity = db.relationship('Opportunity', backref='applications')
+    
     def to_dict(self):
         student = User.query.get(self.student_id)
         return {'id': self.id, 'opportunity_title': self.opportunity.title, 'company': self.opportunity.company, 'status': self.status, 'date': self.date, 'student_id': self.student_id, 'student_name': student.name if student else "Desconocido"}
@@ -105,7 +115,8 @@ class TutorRequest(db.Model):
         student = User.query.get(self.student_id)
         return {'id': self.id, 'student_name': student.name if student else "Desconocido", 'title': self.title, 'filename': self.filename, 'status': self.status, 'tutor_name': self.tutor_name, 'date': self.date}
 
-# ================= FUNCIÓN PARA ENVIAR CORREO =================
+# ================= FUNCIÓN CORREGIDA (PUERTO 587 + TLS) =================
+# Esta configuración es la más compatible con redes universitarias/oficinas
 def send_email_confirmation(to_email, student_name, company, date, time):
     print(f"🚀 INICIANDO ENVÍO DE CORREO A: {to_email}...") 
     try:
@@ -130,13 +141,9 @@ def send_email_confirmation(to_email, student_name, company, date, time):
         """
         msg.attach(MIMEText(body, 'plain'))
 
-        # --- CAMBIO IMPORTANTE AQUÍ ---
-        # Usamos SMTP normal en puerto 587 y luego activamos seguridad con starttls()
+        # Usamos puerto 587 con STARTTLS
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20) 
-        server.set_debuglevel(1) # Esto imprimirá TODO el detalle técnico en la consola
-        
-        server.starttls() # <--- ESTO ES LO QUE ENCRIPTA LA CONEXIÓN
-        
+        server.starttls() 
         server.login(SMTP_EMAIL, SMTP_PASSWORD)
         text = msg.as_string()
         server.sendmail(SMTP_EMAIL, to_email, text)
@@ -145,9 +152,10 @@ def send_email_confirmation(to_email, student_name, company, date, time):
         print(f"✅ ¡CORREO ENVIADO CON ÉXITO A {to_email}!")
         return True
     except Exception as e:
-        print(f"❌ ERROR: {e}")
+        print(f"❌ ERROR ENVIANDO CORREO: {e}")
         return False
-# ================= RUTAS =================
+
+# ================= RUTAS DE AUTENTICACIÓN =================
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -167,6 +175,40 @@ def login():
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'user': user.to_dict()}), 200
 
+# --- RUTA DE GOOGLE LOGIN (RESTAURADA) ---
+@app.route('/api/google-login', methods=['POST'])
+def google_login():
+    token = request.json.get('token')
+    try:
+        # Verificar el token con Google
+        id_info = id_token.verify_oauth2_token(token, google_requests.Request())
+        
+        email = id_info['email']
+        name = id_info['name']
+        
+        # Buscar usuario en BD
+        user = User.query.filter_by(email=email).first()
+        
+        # Si no existe, crearlo
+        if not user:
+            # Contraseña aleatoria porque usa Google
+            dummy_password = generate_password_hash("google_auth_" + os.urandom(8).hex())
+            user = User(name=name, email=email, password=dummy_password, role='student')
+            db.session.add(user)
+            db.session.commit()
+            print(f"Usuario Google creado: {email}")
+        
+        # Generar token JWT nuestro
+        access_token = create_access_token(identity=str(user.id))
+        return jsonify({'token': access_token, 'user': user.to_dict()}), 200
+        
+    except ValueError as e:
+        print(f"Error Google Token: {e}")
+        return jsonify({'error': 'Token inválido'}), 401
+    except Exception as e:
+        print(f"Error Login Google: {e}")
+        return jsonify({'error': 'Error en autenticación'}), 500
+
 @app.route('/api/user/update', methods=['PUT'])
 @jwt_required()
 def update_user():
@@ -183,7 +225,10 @@ def update_user():
 @jwt_required()
 def get_user_profile(user_id):
     user = User.query.get(user_id)
+    if not user: return jsonify({'error': 'Usuario no encontrado'}), 404
     return jsonify(user.to_dict()), 200
+
+# ================= RUTAS DE CERTIFICACIONES =================
 
 @app.route('/api/certifications', methods=['POST'])
 @jwt_required()
@@ -205,6 +250,8 @@ def delete_certification(id):
         db.session.commit()
         return jsonify({'message': 'Eliminado'}), 200
     return jsonify({'error': 'Error'}), 403
+
+# ================= RUTAS DE TUTOR Y ARCHIVOS =================
 
 @app.route('/api/tutor-requests', methods=['POST'])
 @jwt_required()
@@ -262,7 +309,8 @@ def get_cv(student_id):
     try: return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
     except: return jsonify({'error': 'CV not found'}), 404
 
-# --- REPORTES PDF ---
+# ================= RUTAS DE REPORTES PDF =================
+
 @app.route('/api/admin/export-pdf/<int:student_id>', methods=['GET'])
 @jwt_required()
 def export_pdf(student_id):
@@ -272,6 +320,8 @@ def export_pdf(student_id):
 
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
+    
+    # ENCABEZADO
     p.setFont("Helvetica-Bold", 18)
     p.drawString(50, 750, user.name)
     p.setFont("Helvetica", 12)
@@ -281,6 +331,8 @@ def export_pdf(student_id):
     p.drawString(50, 715, f"Email: {user.email}")
     p.line(50, 700, 550, 700)
     y = 670
+    
+    # SECCIÓN TUTOR
     p.setFont("Helvetica-Bold", 14)
     p.drawString(50, y, "PRÁCTICAS PRE-PROFESIONALES")
     y -= 20
@@ -294,6 +346,8 @@ def export_pdf(student_id):
     else:
         p.drawString(70, y, "Estado: Pendiente de asignación de tutor.")
     y -= 40
+
+    # SECCIÓN CURSOS
     p.setFont("Helvetica-Bold", 14)
     p.drawString(50, y, "FORMACIÓN Y CURSOS")
     y -= 25
@@ -310,6 +364,7 @@ def export_pdf(student_id):
                 y = 750
     else:
         p.drawString(70, y, "No hay certificaciones registradas.")
+    
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -347,6 +402,8 @@ def export_assignment_pdf(request_id):
     response.headers['Content-Type'] = 'application/pdf'
     return response
 
+# ================= RUTAS DE APLICACIÓN Y CITAS =================
+
 @app.route('/api/opportunities', methods=['GET', 'POST'])
 def handle_opportunities():
     if request.method == 'POST':
@@ -356,7 +413,23 @@ def handle_opportunities():
         db.session.commit()
         return jsonify({'message': 'Created'}), 201
     return jsonify([o.to_dict() for o in Opportunity.query.all()]), 200
-
+@app.route('/api/opportunities/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_opportunity(id):
+    # 1. Buscar la oferta
+    opp = Opportunity.query.get(id)
+    if not opp:
+        return jsonify({'error': 'Oferta no encontrada'}), 404
+    
+    # 2. Borrar primero todas las postulaciones asociadas a esta oferta
+    # (Si no hacemos esto, quedarían datos huérfanos o daría error)
+    Application.query.filter_by(opportunity_id=id).delete()
+    
+    # 3. Borrar la oferta
+    db.session.delete(opp)
+    db.session.commit()
+    
+    return jsonify({'message': 'Oferta eliminada'}), 200
 @app.route('/api/applications', methods=['POST', 'GET'])
 @jwt_required()
 def handle_applications():
@@ -387,7 +460,6 @@ def update_status(id):
     db.session.commit()
     return jsonify({'message': 'Updated'}), 200
 
-# --- CITA + ENVÍO DE CORREO (Ruta Modificada) ---
 @app.route('/api/appointments', methods=['POST', 'GET'])
 @jwt_required()
 def handle_appointments():
@@ -401,12 +473,10 @@ def handle_appointments():
         db.session.commit()
         
         # 2. ENVIAR CORREO
-        # Obtenemos info extra para el correo
         user = User.query.get(user_id)
         application = Application.query.get(app_id)
         company_name = application.opportunity.company if application else "la empresa"
         
-        # Enviamos
         email_sent = send_email_confirmation(user.email, user.name, company_name, data['date'], data['time'])
         
         return jsonify({'message': 'Scheduled', 'email_sent': email_sent}), 201
