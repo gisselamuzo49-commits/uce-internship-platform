@@ -6,6 +6,7 @@ import {
   User,
   LogOut,
   PlusCircle,
+  Briefcase, // Icono opcional si lo tienes
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -15,7 +16,7 @@ const Sidebar = () => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
-  // LÓGICA DE FILTRADO POR ROL
+  // LÓGICA DE MENÚ
   const menuItems =
     user?.role === 'admin'
       ? [
@@ -26,8 +27,8 @@ const Sidebar = () => {
           },
           {
             icon: FileText,
-            text: 'Gestionar Postulantes',
-            path: '/admin/postulaciones',
+            text: 'Gestionar Solicitudes', // Nombre más claro
+            path: '/admin/postulaciones', // <--- ESTO DEBE COINCIDIR CON APP.JSX
           },
           {
             icon: PlusCircle,
