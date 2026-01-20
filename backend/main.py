@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 import os
 import datetime
 import io
+
+# --- LIBRERÍA PARA GENERAR PDF ---
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
@@ -55,7 +57,6 @@ class Opportunity(db.Model):
     description = db.Column(db.Text, nullable=False)
     location = db.Column(db.String(100), default='Quito')
     deadline = db.Column(db.String(20), nullable=True)
-    # --- NUEVO CAMPO: LÍMITE DE VACANTES ---
     vacancies = db.Column(db.Integer, default=1) 
 
     def to_dict(self):
@@ -63,8 +64,8 @@ class Opportunity(db.Model):
             'id': self.id, 'title': self.title, 'company': self.company, 
             'description': self.description, 'location': self.location, 
             'deadline': self.deadline,
-            'vacancies': self.vacancies, # Enviamos el límite
-            'applicants_count': len(self.applications) # Enviamos cuántos van
+            'vacancies': self.vacancies,
+            'applicants_count': len(self.applications) 
         }
 
 class Application(db.Model):
@@ -213,13 +214,68 @@ def get_cv(student_id):
     try: return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
     except: return jsonify({'error': 'CV not found'}), 404
 
+# --- REPORTES PDF MEJORADOS ---
+
+# 1. REPORTE TIPO CV (ATS-FRIENDLY)
 @app.route('/api/admin/export-pdf/<int:student_id>', methods=['GET'])
 @jwt_required()
 def export_pdf(student_id):
     user = User.query.get(student_id)
+    if not user: return jsonify({'error': 'Usuario no encontrado'}), 404
+    
+    # Buscar si tiene tutor asignado
+    tutor_req = TutorRequest.query.filter_by(student_id=student_id, status='Aprobado').first()
+
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-    p.drawString(100, 750, f"Reporte: {user.name} ({user.email})")
+    
+    # ENCABEZADO
+    p.setFont("Helvetica-Bold", 18)
+    p.drawString(50, 750, user.name)
+    p.setFont("Helvetica", 12)
+    p.setFillColorRGB(0.5, 0.5, 0.5)
+    p.drawString(50, 735, "Estudiante / Candidato")
+    p.setFillColorRGB(0, 0, 0)
+    p.drawString(50, 715, f"Email: {user.email}")
+    p.line(50, 700, 550, 700) # Línea divisoria
+
+    y = 670
+    
+    # SECCIÓN: ESTADO DE PRÁCTICAS (TUTOR)
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(50, y, "PRÁCTICAS PRE-PROFESIONALES")
+    y -= 20
+    p.setFont("Helvetica", 12)
+    if tutor_req:
+        p.drawString(70, y, f"Estado: APROBADO")
+        y -= 15
+        p.drawString(70, y, f"Tutor Académico Asignado: {tutor_req.tutor_name}")
+        y -= 15
+        p.drawString(70, y, f"Documento Validado: {tutor_req.title}")
+    else:
+        p.drawString(70, y, "Estado: Pendiente de asignación de tutor.")
+    
+    y -= 40
+
+    # SECCIÓN: EDUCACIÓN (CURSOS)
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(50, y, "FORMACIÓN Y CURSOS")
+    y -= 25
+    p.setFont("Helvetica", 12)
+    
+    if user.certifications:
+        for cert in user.certifications:
+            p.drawString(70, y, f"• {cert.title}")
+            p.setFont("Helvetica-Oblique", 10)
+            p.drawString(85, y-12, f"{cert.institution} | {cert.year}")
+            p.setFont("Helvetica", 12)
+            y -= 30
+            if y < 100: # Nueva página si se acaba el espacio
+                p.showPage()
+                y = 750
+    else:
+        p.drawString(70, y, "No hay certificaciones registradas.")
+    
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -227,43 +283,82 @@ def export_pdf(student_id):
     response.headers['Content-Type'] = 'application/pdf'
     return response
 
-# --- OPORTUNIDADES CON VALIDACIÓN ---
+# 2. NUEVO: CERTIFICADO DE ASIGNACIÓN (MEMORANDO)
+@app.route('/api/admin/export-assignment/<int:request_id>', methods=['GET'])
+@jwt_required()
+def export_assignment_pdf(request_id):
+    req = TutorRequest.query.get(request_id)
+    if not req or req.status != 'Aprobado': return jsonify({'error': 'No aprobado'}), 400
+    student = User.query.get(req.student_id)
+
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    
+    p.setFont("Helvetica-Bold", 20)
+    p.drawCentredString(300, 700, "MEMORANDO DE ASIGNACIÓN")
+    
+    p.setFont("Helvetica", 12)
+    p.drawString(100, 650, f"FECHA: {datetime.datetime.now().strftime('%Y-%m-%d')}")
+    p.drawString(100, 630, f"PARA: {req.tutor_name}")
+    p.drawString(100, 610, f"ASUNTO: Asignación de Tutoría de Prácticas")
+    
+    p.line(100, 590, 500, 590)
+    
+    text = f"""
+    Por medio de la presente, se notifica la asignación formal como Tutor Académico
+    del estudiante {student.name}, identificado con correo {student.email}.
+    
+    El estudiante ha presentado la documentación requerida ('{req.title}'), la cual
+    ha sido revisada y aprobada por la coordinación.
+    
+    Se solicita iniciar el seguimiento de las prácticas pre-profesionales conforme
+    al reglamento institucional.
+    """
+    
+    text_object = p.beginText(100, 550)
+    text_object.setFont("Helvetica", 12)
+    for line in text.split("\n"):
+        text_object.textLine(line.strip())
+    p.drawText(text_object)
+    
+    p.setFont("Helvetica-Bold", 12)
+    p.drawCentredString(300, 400, "_________________________")
+    p.drawCentredString(300, 380, "Coordinación de Vinculación")
+    
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    response = make_response(buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    return response
+
+# --- OPORTUNIDADES & APLICACIONES ---
 @app.route('/api/opportunities', methods=['GET', 'POST'])
 def handle_opportunities():
     if request.method == 'POST':
         data = request.json
-        # Guardamos también las vacantes (vacancies)
         new_opp = Opportunity(
             title=data['title'], company=data['company'], 
             description=data['description'], location=data.get('location', 'Quito'), 
-            deadline=data.get('deadline'), 
-            vacancies=int(data.get('vacancies', 1)) # Nuevo campo
+            deadline=data.get('deadline'), vacancies=int(data.get('vacancies', 1))
         )
         db.session.add(new_opp)
         db.session.commit()
         return jsonify({'message': 'Created'}), 201
     return jsonify([o.to_dict() for o in Opportunity.query.all()]), 200
 
-# --- APLICACIONES CON VALIDACIÓN DE FECHA Y CUPOS ---
 @app.route('/api/applications', methods=['POST', 'GET'])
 @jwt_required()
 def handle_applications():
     user_id = int(get_jwt_identity())
-    
     if request.method == 'POST':
         data = request.json
         opp_id = data.get('opportunity_id')
         opportunity = Opportunity.query.get(opp_id)
         
-        # 1. VALIDAR FECHA
         today = datetime.datetime.now().strftime("%Y-%m-%d")
-        if opportunity.deadline and today > opportunity.deadline:
-            return jsonify({'error': 'Caducado'}), 400
-        
-        # 2. VALIDAR CUPOS (VACANTES)
-        current_applicants = len(opportunity.applications)
-        if current_applicants >= opportunity.vacancies:
-            return jsonify({'error': 'Lleno'}), 400
+        if opportunity.deadline and today > opportunity.deadline: return jsonify({'error': 'Caducado'}), 400
+        if len(opportunity.applications) >= opportunity.vacancies: return jsonify({'error': 'Lleno'}), 400
 
         new_app = Application(student_id=user_id, opportunity_id=int(opp_id), date=today)
         db.session.add(new_app)

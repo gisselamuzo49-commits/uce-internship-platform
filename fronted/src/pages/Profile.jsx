@@ -7,10 +7,6 @@ import {
   Award,
   BookOpen,
   Upload,
-  FileText,
-  CheckCircle,
-  Clock,
-  XCircle,
   Edit,
   X,
   Lock,
@@ -21,20 +17,21 @@ import {
   LayoutDashboard,
   Users,
   FileBarChart,
+  AlertTriangle,
+  CheckCircle,
+  Info,
 } from 'lucide-react';
 
 const UserProfile = () => {
-  const { user, authFetch } = useAuth();
+  const { user, authFetch, refreshUser } = useAuth();
   const navigate = useNavigate();
-  const isStudent = user?.role === 'student'; // Flag para saber si es estudiante
+  const isStudent = user?.role === 'student';
 
-  // --- ESTADOS COMUNES ---
-  const [isEditing, setIsEditing] = useState(false); // Modal editar datos
+  const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ name: '', password: '' });
   const [updating, setUpdating] = useState(false);
 
-  // --- ESTADOS DE ESTUDIANTE ---
-  const [requests, setRequests] = useState([]); // Solicitudes Tutor
+  const [requests, setRequests] = useState([]);
   const [docTitle, setDocTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [certForm, setCertForm] = useState({
@@ -44,7 +41,20 @@ const UserProfile = () => {
   });
   const [addingCert, setAddingCert] = useState(false);
 
-  // Cargamos datos al inicio
+  // NOTIFICACIONES
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
+  const showNotification = (message, type = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(
+      () => setNotification({ show: false, message: '', type: '' }),
+      4000
+    );
+  };
+
   useEffect(() => {
     if (user) {
       setEditData({ name: user.name, password: '' });
@@ -61,7 +71,6 @@ const UserProfile = () => {
     }
   };
 
-  // --- FUNCIONALIDAD 1: AGREGAR CURSO (ESTUDIANTE) ---
   const handleAddCert = async (e) => {
     e.preventDefault();
     if (!certForm.title || !certForm.institution) return;
@@ -73,13 +82,13 @@ const UserProfile = () => {
         body: JSON.stringify(certForm),
       });
       if (res.ok) {
-        alert('✅ Curso agregado correctamente.');
+        await refreshUser();
+        showNotification('✅ Curso agregado correctamente', 'success');
         setCertForm({
           title: '',
           institution: '',
           year: new Date().getFullYear(),
         });
-        window.location.reload(); // Recargamos para actualizar lista y gráfica del dashboard
       }
     } catch (e) {
       console.error(e);
@@ -88,64 +97,24 @@ const UserProfile = () => {
     }
   };
 
-  // --- FUNCIONALIDAD 2: BORRAR CURSO (ESTUDIANTE) ---
   const handleDeleteCert = async (id) => {
-    // Confirmación antes de borrar
-    if (
-      !window.confirm(
-        '¿Estás seguro de que quieres eliminar este curso? Tu nivel de perfil bajará.'
-      )
-    )
-      return;
-
+    if (!window.confirm('¿Eliminar este curso?')) return;
     try {
       const res = await authFetch(
         `http://localhost:5001/api/certifications/${id}`,
         { method: 'DELETE' }
       );
       if (res.ok) {
-        alert('🗑️ Curso eliminado.');
-        window.location.reload(); // Recargamos para ver los cambios
+        await refreshUser();
+        showNotification('🗑️ Curso eliminado', 'success');
       } else {
-        alert('Error al eliminar.');
+        showNotification('Error al eliminar', 'error');
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  // --- FUNCIONALIDAD 3: TUTOR (ESTUDIANTE) ---
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    const file = document.getElementById('req-file').files[0];
-    if (!file || !docTitle) return alert('Faltan datos');
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', docTitle);
-    try {
-      let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
-      const res = await fetch('http://localhost:5001/api/tutor-requests', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      if (res.ok) {
-        alert('✅ Solicitud enviada correctamente');
-        setDocTitle('');
-        document.getElementById('req-file').value = '';
-        fetchRequests();
-      } else {
-        alert('❌ Error al subir');
-      }
-    } catch (e) {
-      alert('Error de conexión');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // --- FUNCIONALIDAD 4: EDITAR PERFIL (AMBOS) ---
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setUpdating(true);
@@ -158,14 +127,45 @@ const UserProfile = () => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        alert('✅ Perfil actualizado. Inicia sesión de nuevo.');
-        window.location.href = '/login';
+        await refreshUser();
+        showNotification('✅ Perfil actualizado', 'success');
+        setIsEditing(false);
+        setEditData((prev) => ({ ...prev, password: '' }));
       }
     } catch (e) {
       console.error(e);
     } finally {
       setUpdating(false);
-      setIsEditing(false);
+    }
+  };
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    const file = document.getElementById('req-file').files[0];
+    if (!file || !docTitle) return showNotification('Faltan datos', 'error');
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', docTitle);
+    try {
+      let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
+      const res = await fetch('http://localhost:5001/api/tutor-requests', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) {
+        showNotification('✅ Solicitud enviada', 'success');
+        setDocTitle('');
+        document.getElementById('req-file').value = '';
+        fetchRequests();
+      } else {
+        showNotification('Error al subir', 'error');
+      }
+    } catch (e) {
+      showNotification('Error conexión', 'error');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -173,7 +173,46 @@ const UserProfile = () => {
 
   return (
     <div className="max-w-5xl mx-auto p-8 relative space-y-8 min-h-screen">
-      {/* --- HEADER DEL PERFIL (COMÚN PARA AMBOS) --- */}
+      {notification.show && (
+        <div
+          className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+        >
+          {notification.type === 'success' ? (
+            <CheckCircle size={24} />
+          ) : (
+            <AlertTriangle size={24} />
+          )}
+          {notification.message}
+          <button
+            onClick={() => setNotification({ ...notification, show: false })}
+            className="ml-4 hover:bg-white/20 p-1 rounded-full"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* --- BANNER DE ADVERTENCIA (SOLO ESTUDIANTE) --- */}
+      {isStudent && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl flex items-start gap-4 shadow-sm animate-in slide-in-from-top-4">
+          <div className="bg-amber-100 p-2 rounded-full text-amber-600">
+            <Info size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-amber-800 text-lg">
+              ATENCIÓN: Información Obligatoria
+            </h3>
+            <p className="text-amber-700 text-sm mt-1">
+              Para que tu perfil sea considerado en las postulaciones,{' '}
+              <strong>es obligatorio llenar la sección de "Cursos"</strong> y
+              formalizar tu solicitud de tutor. Los perfiles incompletos tienen
+              menos prioridad.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
         <div
           className={`h-32 relative bg-gradient-to-r ${isStudent ? 'from-blue-600 to-indigo-700' : 'from-slate-800 to-slate-900'}`}
@@ -183,7 +222,6 @@ const UserProfile = () => {
               <User size={40} />
             </div>
           </div>
-          {/* El Admin edita sus datos directamente en el panel de abajo, el estudiante usa modal */}
           {isStudent && (
             <button
               onClick={() => setIsEditing(true)}
@@ -206,20 +244,16 @@ const UserProfile = () => {
         </div>
       </div>
 
-      {/* =========================================================
-          VISTA DEL ADMINISTRADOR (PANEL DE CONTROL)
-         ========================================================= */}
       {!isStudent && (
         <div className="grid md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* TARJETA 1: SEGURIDAD (CAMBIO DE CLAVE DIRECTO) */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Shield className="text-emerald-500" /> Seguridad de la Cuenta
+              <Shield className="text-emerald-500" /> Seguridad
             </h2>
             <form onSubmit={handleUpdateProfile} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                  Nombre de Usuario
+                  Nombre
                 </label>
                 <input
                   type="text"
@@ -241,7 +275,7 @@ const UserProfile = () => {
                   />
                   <input
                     type="password"
-                    placeholder="Ingresa nueva contraseña"
+                    placeholder="Opcional"
                     value={editData.password}
                     onChange={(e) =>
                       setEditData({ ...editData, password: e.target.value })
@@ -249,96 +283,66 @@ const UserProfile = () => {
                     className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                  Deja vacío si no quieres cambiarla.
-                </p>
               </div>
               <button
                 type="submit"
                 disabled={updating}
-                className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition shadow-lg"
+                className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition"
               >
-                {updating ? 'Guardando...' : 'Actualizar Credenciales'}
+                {updating ? '...' : 'Actualizar'}
               </button>
             </form>
           </div>
-
-          {/* TARJETA 2: RESUMEN OPERATIVO (LINKS RÁPIDOS) */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 flex flex-col justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">
-                <LayoutDashboard className="text-blue-600" /> Resumen Operativo
-              </h2>
-              <p className="text-slate-500 text-sm mb-6">
-                Accesos directos a la gestión de la plataforma.
-              </p>
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => navigate('/admin/postulaciones')}
-                  className="w-full p-4 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl flex items-center gap-4 transition text-left group"
-                >
-                  <div className="bg-white p-2 rounded-lg text-blue-600 shadow-sm">
-                    <Users size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-blue-900 group-hover:text-blue-700">
-                      Gestionar Postulantes
-                    </p>
-                    <p className="text-xs text-blue-600/70">
-                      Revisar CVs y asignaciones
-                    </p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => navigate('/admin/postulaciones')}
-                  className="w-full p-4 bg-orange-50 hover:bg-orange-100 border border-orange-100 rounded-xl flex items-center gap-4 transition text-left group"
-                >
-                  <div className="bg-white p-2 rounded-lg text-orange-600 shadow-sm">
-                    <FileBarChart size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-orange-900 group-hover:text-orange-700">
-                      Solicitudes de Tutor
-                    </p>
-                    <p className="text-xs text-orange-600/70">
-                      Formalización de prácticas
-                    </p>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-              <p className="text-xs text-slate-400 font-medium">
-                Sistema SIIU Conecta v1.0
-              </p>
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
+            <h2 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">
+              <LayoutDashboard className="text-blue-600" /> Resumen
+            </h2>
+            <p className="text-slate-500 text-sm mb-6">Accesos directos.</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate('/admin/postulaciones')}
+                className="w-full p-4 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl flex items-center gap-4 text-left group"
+              >
+                <div className="bg-white p-2 rounded-lg text-blue-600 shadow-sm">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-blue-900">Postulantes</p>
+                  <p className="text-xs text-blue-600/70">Revisar CVs</p>
+                </div>
+              </button>
+              <button
+                onClick={() => navigate('/admin/postulaciones')}
+                className="w-full p-4 bg-orange-50 hover:bg-orange-100 border border-orange-100 rounded-xl flex items-center gap-4 text-left group"
+              >
+                <div className="bg-white p-2 rounded-lg text-orange-600 shadow-sm">
+                  <FileBarChart size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-orange-900">Solicitudes Tutor</p>
+                  <p className="text-xs text-orange-600/70">Formalización</p>
+                </div>
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* =========================================================
-          VISTA DEL ESTUDIANTE (CURSOS Y TUTOR)
-         ========================================================= */}
       {isStudent && (
         <>
-          {/* SECCIÓN 1: FORMACIÓN ACADÉMICA */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Award className="text-orange-500" /> Formación y Cursos
+              <Award className="text-orange-500" /> Formación
             </h2>
             <div className="grid md:grid-cols-2 gap-8">
-              {/* Formulario Agregar */}
               <div className="bg-orange-50 p-6 rounded-xl border border-orange-100 h-fit">
                 <h3 className="font-bold text-orange-800 mb-4 text-sm uppercase">
-                  Agregar Nuevo Curso
+                  Agregar Curso
                 </h3>
                 <form onSubmit={handleAddCert} className="space-y-3">
                   <input
                     type="text"
-                    placeholder="Nombre del Curso / Título"
+                    placeholder="Título"
                     className="w-full p-3 bg-white border border-orange-200 rounded-xl text-sm"
                     value={certForm.title}
                     onChange={(e) =>
@@ -377,27 +381,25 @@ const UserProfile = () => {
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition flex justify-center gap-2 items-center"
                   >
                     {addingCert ? (
-                      'Guardando...'
+                      '...'
                     ) : (
                       <>
-                        <Plus size={18} /> Agregar al Perfil
+                        <Plus size={18} /> Agregar
                       </>
                     )}
                   </button>
                 </form>
               </div>
-
-              {/* Lista con Botón de Borrar */}
               <div>
                 <h3 className="font-bold text-slate-700 mb-4 text-sm uppercase">
-                  Mis Certificaciones Actuales
+                  Mis Certificaciones
                 </h3>
-                {user.certifications && user.certifications.length > 0 ? (
+                {user.certifications?.length > 0 ? (
                   <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
                     {user.certifications.map((cert) => (
                       <div
                         key={cert.id}
-                        className="flex justify-between items-center p-3 bg-slate-50 border border-slate-100 rounded-xl group hover:bg-white hover:shadow-md transition"
+                        className="flex justify-between items-center p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-white hover:shadow-md transition"
                       >
                         <div className="flex items-center gap-3">
                           <div className="bg-white p-2 rounded-lg border border-slate-100 text-orange-500">
@@ -412,11 +414,9 @@ const UserProfile = () => {
                             </p>
                           </div>
                         </div>
-                        {/* BOTÓN DE BORRAR REPARADO */}
                         <button
                           onClick={() => handleDeleteCert(cert.id)}
                           className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                          title="Eliminar curso"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -425,22 +425,15 @@ const UserProfile = () => {
                   </div>
                 ) : (
                   <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                    <p className="text-slate-400 text-sm">
-                      Aún no has agregado cursos.
-                    </p>
-                    <p className="text-orange-400 text-xs font-bold mt-1">
-                      ¡Agrega uno para subir tu nivel!
-                    </p>
+                    <p className="text-slate-400 text-sm">Sin cursos aún.</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
-
-          {/* SECCIÓN 2: FORMALIZACIÓN (TUTOR) */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <BookOpen className="text-blue-600" /> Formalización de Prácticas
+              <BookOpen className="text-blue-600" /> Formalización
             </h2>
             <div className="grid md:grid-cols-2 gap-8">
               <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 h-fit">
@@ -450,17 +443,17 @@ const UserProfile = () => {
                 <form onSubmit={handleUpload} className="space-y-4">
                   <input
                     type="text"
-                    placeholder="Título del Documento"
+                    placeholder="Título Documento"
                     value={docTitle}
                     onChange={(e) => setDocTitle(e.target.value)}
-                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none text-sm"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm"
                     required
                   />
                   <input
                     type="file"
                     id="req-file"
                     accept=".pdf"
-                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    className="w-full text-sm text-slate-500"
                     required
                   />
                   <button
@@ -468,13 +461,13 @@ const UserProfile = () => {
                     disabled={uploading}
                     className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 disabled:opacity-50 text-sm"
                   >
-                    {uploading ? 'Enviando...' : 'Enviar Solicitud'}
+                    {uploading ? '...' : 'Enviar'}
                   </button>
                 </form>
               </div>
               <div className="space-y-3">
                 <h3 className="font-bold text-slate-700 mb-4 text-sm uppercase">
-                  Mis Solicitudes
+                  Solicitudes
                 </h3>
                 {requests.length === 0 ? (
                   <p className="text-slate-400 text-sm">Sin solicitudes.</p>
@@ -513,8 +506,6 @@ const UserProfile = () => {
               </div>
             </div>
           </div>
-
-          {/* MODAL DE EDICIÓN PARA ESTUDIANTE */}
           {isEditing && (
             <div className="fixed inset-0 bg-slate-900/80 z-[9999] flex justify-center items-center p-4">
               <div className="bg-white w-full max-w-md rounded-2xl p-6">
@@ -532,7 +523,6 @@ const UserProfile = () => {
                       setEditData({ ...editData, name: e.target.value })
                     }
                     className="w-full p-3 border rounded-xl"
-                    placeholder="Nombre"
                   />
                   <input
                     type="password"
@@ -541,14 +531,14 @@ const UserProfile = () => {
                       setEditData({ ...editData, password: e.target.value })
                     }
                     className="w-full p-3 border rounded-xl"
-                    placeholder="Nueva Contraseña (Opcional)"
+                    placeholder="Nueva Contraseña"
                   />
                   <button
                     type="submit"
                     disabled={updating}
                     className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl"
                   >
-                    {updating ? 'Guardando...' : 'Guardar'}
+                    {updating ? '...' : 'Guardar'}
                   </button>
                 </form>
               </div>
@@ -559,5 +549,4 @@ const UserProfile = () => {
     </div>
   );
 };
-
 export default UserProfile;

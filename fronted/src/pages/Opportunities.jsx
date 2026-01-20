@@ -12,6 +12,9 @@ import {
   CheckCircle,
   ArrowRight,
   Ban,
+  Check,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 
 const Opportunities = () => {
@@ -21,6 +24,21 @@ const Opportunities = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [myApplications, setMyApplications] = useState([]);
+
+  // --- ESTADO PARA NOTIFICACIONES (VERDE/ROJO) ---
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(
+      () => setNotification({ show: false, message: '', type: '' }),
+      4000
+    );
+  };
 
   useEffect(() => {
     fetchData();
@@ -48,11 +66,16 @@ const Opportunities = () => {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('¿Eliminar oferta?')) alert('Conectar endpoint DELETE.');
+    if (window.confirm('¿Eliminar oferta?'))
+      showNotification(
+        'Funcionalidad de borrado pendiente de conectar.',
+        'error'
+      );
   };
 
   const handleApply = async (oppId) => {
-    if (!user) return alert('Inicia sesión primero');
+    if (!user) return showNotification('Inicia sesión primero', 'error');
+
     if (window.confirm('¿Deseas postularte a esta oferta?')) {
       try {
         const res = await authFetch('http://localhost:5001/api/applications', {
@@ -60,19 +83,25 @@ const Opportunities = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ opportunity_id: oppId }),
         });
+
         if (res.ok) {
-          alert('✅ ¡Postulación enviada!');
+          showNotification('✅ ¡Postulación enviada correctamente!', 'success');
           fetchData();
         } else {
-          // MANEJO DE ERRORES ESPECÍFICOS DEL BACKEND
+          // MANEJO DE ERRORES CON COLORES
           const err = await res.json();
           if (err.error === 'Caducado')
-            alert('⛔ ERROR: La fecha límite de esta oferta ya pasó.');
-          else if (err.error === 'Lleno')
-            alert(
-              '⛔ ERROR: Ya no quedan vacantes disponibles para esta oferta.'
+            showNotification(
+              '⛔ ERROR: La fecha límite de esta oferta ya pasó.',
+              'error'
             );
-          else alert('Error al postular');
+          else if (err.error === 'Lleno')
+            showNotification(
+              '⛔ ERROR: Ya no quedan vacantes disponibles.',
+              'error'
+            );
+          else
+            showNotification('Error al postular. Intenta de nuevo.', 'error');
         }
       } catch (error) {
         console.error(error);
@@ -85,11 +114,32 @@ const Opportunities = () => {
       o.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.company.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
   const isExpired = (dateString) =>
     dateString && new Date(dateString) < new Date();
 
   return (
-    <div className="max-w-7xl mx-auto p-8 min-h-screen">
+    <div className="max-w-7xl mx-auto p-8 min-h-screen relative">
+      {/* --- NOTIFICACIÓN FLOTANTE --- */}
+      {notification.show && (
+        <div
+          className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+        >
+          {notification.type === 'success' ? (
+            <CheckCircle size={24} />
+          ) : (
+            <AlertTriangle size={24} />
+          )}
+          {notification.message}
+          <button
+            onClick={() => setNotification({ ...notification, show: false })}
+            className="ml-4 hover:bg-white/20 p-1 rounded-full"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase">
@@ -151,7 +201,7 @@ const Opportunities = () => {
                           <div
                             className={`flex items-center gap-2 text-sm font-bold ${expired ? 'text-rose-500' : 'text-emerald-600'}`}
                           >
-                            <Calendar size={16} /> {opp.deadline || 'N/A'}{' '}
+                            <Calendar size={16} /> {opp.deadline || 'N/A'}
                             {expired && (
                               <span className="text-[10px] bg-rose-100 px-2 rounded-full">
                                 CADUCADO
@@ -225,7 +275,6 @@ const Opportunities = () => {
                       {opp.company}
                     </p>
 
-                    {/* BARRA DE PROGRESO DE VACANTES */}
                     <div className="mb-4 relative z-20">
                       <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
                         <span>Cupos:</span>

@@ -1,35 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  CheckCircle,
-  XCircle,
+  Briefcase,
+  BookOpen,
   User,
   Calendar,
-  Briefcase,
-  Loader,
   FileText,
-  X,
-  Award,
+  CheckCircle,
+  XCircle,
   Eye,
   Download,
-  BookOpen,
+  X,
+  Loader,
+  Award,
+  Check,
+  AlertTriangle,
+  Printer,
 } from 'lucide-react';
 
 const AdminRequests = () => {
   const { authFetch } = useAuth();
-  const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'tutors'
+  const [activeTab, setActiveTab] = useState('jobs');
 
-  // ESTADOS
   const [applications, setApplications] = useState([]);
   const [tutorRequests, setTutorRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [tutorInput, setTutorInput] = useState({});
 
-  // ESTADOS DE MODAL PERFIL
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // --- NOTIFICACIONES ---
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(
+      () => setNotification({ show: false, message: '', type: '' }),
+      4000
+    );
+  };
 
   useEffect(() => {
     fetchData();
@@ -56,7 +72,6 @@ const AdminRequests = () => {
     }
   };
 
-  // --- FUNCIONES DE BOTONES (OJO, DESCARGA, ETC) ---
   const handleStatusChange = async (appId, newStatus) => {
     setProcessingId(appId);
     try {
@@ -74,18 +89,17 @@ const AdminRequests = () => {
             app.id === appId ? { ...app, status: newStatus } : app
           )
         );
+        showNotification(`Solicitud marcada como ${newStatus}`, 'success');
       }
     } catch (error) {
-      console.error(error);
+      showNotification('Error al actualizar estado', 'error');
     } finally {
       setProcessingId(null);
     }
   };
 
-  const handleViewCV = async (studentId) => {
-    // Abre el CV en una nueva pestaña
+  const handleViewCV = (studentId) =>
     window.open(`http://localhost:5001/api/cv/${studentId}`, '_blank');
-  };
 
   const handleDownloadReport = async (studentId, studentName) => {
     const token = localStorage.getItem('token');
@@ -106,11 +120,41 @@ const AdminRequests = () => {
         document.body.appendChild(a);
         a.click();
         a.remove();
+        showNotification('CV ATS-Friendly descargado', 'success');
       } else {
-        alert('No se pudo generar el reporte.');
+        showNotification('No se pudo generar el reporte.', 'error');
       }
     } catch (error) {
-      console.error('Error descarga:', error);
+      console.error(error);
+    }
+  };
+
+  // --- NUEVA FUNCIÓN: DESCARGAR MEMORANDO ---
+  const handleDownloadMemo = async (requestId, studentName) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(
+        `http://localhost:5001/api/admin/export-assignment/${requestId}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Memorando_${studentName}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showNotification('Memorando descargado', 'success');
+      } else {
+        showNotification('Error al descargar memorando', 'error');
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -124,7 +168,7 @@ const AdminRequests = () => {
       );
       if (res.ok) setSelectedStudent(await res.json());
       else {
-        alert('No se pudo cargar el perfil');
+        showNotification('No se pudo cargar el perfil', 'error');
         setShowProfileModal(false);
       }
     } catch (error) {
@@ -136,7 +180,8 @@ const AdminRequests = () => {
 
   const handleApproveTutor = async (id) => {
     const name = tutorInput[id];
-    if (!name) return alert('Escribe el nombre del tutor primero');
+    if (!name)
+      return showNotification('Escribe el nombre del tutor primero', 'error');
     const res = await authFetch(
       `http://localhost:5001/api/admin/tutor-requests/${id}`,
       {
@@ -146,18 +191,37 @@ const AdminRequests = () => {
       }
     );
     if (res.ok) {
-      alert('✅ Tutor asignado con éxito');
+      showNotification('✅ Tutor asignado con éxito', 'success');
       fetchData();
+    } else {
+      showNotification('Error al asignar tutor', 'error');
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-8 relative">
+    <div className="max-w-6xl mx-auto p-8 relative min-h-screen">
+      {notification.show && (
+        <div
+          className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+        >
+          {notification.type === 'success' ? (
+            <CheckCircle size={24} />
+          ) : (
+            <AlertTriangle size={24} />
+          )}
+          {notification.message}
+          <button
+            onClick={() => setNotification({ ...notification, show: false })}
+            className="ml-4 hover:bg-white/20 p-1 rounded-full"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-6">
         Gestión de Solicitudes
       </h1>
-
-      {/* PESTAÑAS */}
       <div className="flex gap-6 mb-8 border-b border-slate-200">
         <button
           onClick={() => setActiveTab('jobs')}
@@ -173,7 +237,6 @@ const AdminRequests = () => {
         </button>
       </div>
 
-      {/* MODAL PERFIL */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -243,14 +306,12 @@ const AdminRequests = () => {
         </div>
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
       {loading ? (
         <div className="text-center py-10">
           <Loader className="animate-spin mx-auto text-blue-600" />
         </div>
       ) : (
         <>
-          {/* VISTA 1: OFERTAS DE TRABAJO */}
           {activeTab === 'jobs' && (
             <div className="grid gap-4">
               {applications.length === 0 && (
@@ -263,7 +324,6 @@ const AdminRequests = () => {
                   key={app.id}
                   className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:shadow-md transition-all"
                 >
-                  {/* INFO IZQUIERDA */}
                   <div className="flex items-center gap-4 flex-1">
                     <div className="h-14 w-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
                       {app.student_name ? (
@@ -290,20 +350,18 @@ const AdminRequests = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* BOTONES DERECHA */}
                   <div className="flex items-center gap-2 border-l border-slate-100 pl-4">
                     <button
                       onClick={() => handleOpenProfile(app.student_id)}
                       className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition shadow-sm"
-                      title="Ver Perfil Completo"
+                      title="Ver Perfil"
                     >
                       <Eye size={20} />
                     </button>
                     <button
                       onClick={() => handleViewCV(app.student_id)}
                       className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm"
-                      title="Ver Hoja de Vida"
+                      title="Ver CV"
                     >
                       <FileText size={20} />
                     </button>
@@ -315,19 +373,15 @@ const AdminRequests = () => {
                         )
                       }
                       className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition shadow-sm"
-                      title="Descargar Reporte PDF"
+                      title="Descargar CV ATS"
                     >
                       <Download size={20} />
                     </button>
-
-                    {/* ESTADO */}
                     <div
                       className={`mx-2 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${app.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-700' : ''} ${app.status === 'Aprobado' ? 'bg-emerald-100 text-emerald-700' : ''} ${app.status === 'Rechazado' ? 'bg-rose-100 text-rose-700' : ''}`}
                     >
                       {app.status}
                     </div>
-
-                    {/* APROBAR / RECHAZAR */}
                     <div className="flex gap-1 ml-2">
                       <button
                         onClick={() => handleStatusChange(app.id, 'Aprobado')}
@@ -349,8 +403,6 @@ const AdminRequests = () => {
               ))}
             </div>
           )}
-
-          {/* VISTA 2: SOLICITUDES DE TUTOR */}
           {activeTab === 'tutors' && (
             <div className="grid gap-4">
               {tutorRequests.length === 0 && (
@@ -406,16 +458,28 @@ const AdminRequests = () => {
                         </button>
                       </>
                     ) : (
-                      <div className="text-right px-4">
-                        <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 mb-1 justify-end">
-                          <CheckCircle size={12} /> Tutor Asignado
-                        </span>
-                        <p className="text-sm text-slate-600">
-                          Docente:{' '}
-                          <strong className="text-slate-900">
-                            {req.tutor_name}
-                          </strong>
-                        </p>
+                      <div className="text-right px-4 flex items-center gap-4">
+                        <div>
+                          <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 mb-1 justify-end">
+                            <CheckCircle size={12} /> Tutor Asignado
+                          </span>
+                          <p className="text-sm text-slate-600">
+                            Docente:{' '}
+                            <strong className="text-slate-900">
+                              {req.tutor_name}
+                            </strong>
+                          </p>
+                        </div>
+                        {/* --- BOTÓN NUEVO DE DESCARGAR MEMORANDO --- */}
+                        <button
+                          onClick={() =>
+                            handleDownloadMemo(req.id, req.student_name)
+                          }
+                          className="p-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-600 transition"
+                          title="Imprimir Memorando"
+                        >
+                          <Printer size={20} />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -428,5 +492,4 @@ const AdminRequests = () => {
     </div>
   );
 };
-
 export default AdminRequests;

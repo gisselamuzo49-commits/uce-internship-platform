@@ -6,7 +6,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Cargar usuario al iniciar
+  // 1. Cargar usuario al iniciar (TU LÓGICA ORIGINAL)
   useEffect(() => {
     const storedUser = localStorage.getItem('siiu_user');
     if (storedUser) {
@@ -69,7 +69,6 @@ export const AuthProvider = ({ children }) => {
   const saveSession = (data) => {
     setUser(data.user);
     localStorage.setItem('siiu_user', JSON.stringify(data.user));
-    // Guardamos el token limpio
     const token = data.token || data.access_token;
     localStorage.setItem('token', token);
   };
@@ -81,11 +80,9 @@ export const AuthProvider = ({ children }) => {
     window.location.href = '/login';
   };
 
-  // 5. Fetch Autenticado (MODIFICADO PARA NO SACARTE POR ERROR)
+  // 5. Fetch Autenticado
   const authFetch = async (url, options = {}) => {
     let token = localStorage.getItem('token');
-
-    // Limpieza de token por si acaso tiene comillas extra
     if (token) {
       token = token.replace(/^"|"$/g, '').trim();
     }
@@ -98,18 +95,13 @@ export const AuthProvider = ({ children }) => {
 
     try {
       let response = await fetch(url, { ...options, headers });
-
-      // SOLO hacemos logout si es 401 (No autorizado)
       if (response.status === 401) {
         console.warn('Sesión caducada (401). Cerrando sesión...');
         logout();
       }
-
-      // Si es 500 (Error de Servidor), NO sacamos al usuario, solo avisamos
       if (response.status === 500) {
-        console.error('Error interno del servidor (500). Revisa backend logs.');
+        console.error('Error interno del servidor (500).');
       }
-
       return response;
     } catch (error) {
       console.error('Error de red:', error);
@@ -122,6 +114,26 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('siiu_user', JSON.stringify(newData));
   };
 
+  // --- NUEVA FUNCIÓN AGREGADA: REFRESCAR USUARIO ---
+  // Esta función pide los datos nuevos al backend y actualiza la pantalla sin recargar
+  const refreshUser = async () => {
+    if (!user) return;
+    try {
+      // Usamos tu authFetch para asegurar que lleva el token
+      const res = await authFetch(
+        `http://localhost:5001/api/profile/${user.id}`
+      );
+      if (res.ok) {
+        const freshData = await res.json();
+        // Usamos tu función existente para guardar en memoria y localStorage
+        updateLocalUser(freshData);
+        console.log('Datos refrescados correctamente');
+      }
+    } catch (error) {
+      console.error('Error al refrescar usuario', error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -132,6 +144,7 @@ export const AuthProvider = ({ children }) => {
         authFetch,
         loading,
         updateLocalUser,
+        refreshUser, // <--- ¡AQUÍ EXPORTAMOS LA FUNCIÓN MÁGICA!
       }}
     >
       {!loading && children}
