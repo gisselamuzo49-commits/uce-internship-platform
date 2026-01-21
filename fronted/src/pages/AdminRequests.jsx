@@ -358,13 +358,7 @@ const AdminRequests = () => {
                     >
                       <Eye size={20} />
                     </button>
-                    <button
-                      onClick={() => handleViewCV(app.student_id)}
-                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm"
-                      title="Ver CV"
-                    >
-                      <FileText size={20} />
-                    </button>
+
                     <button
                       onClick={() =>
                         handleDownloadReport(

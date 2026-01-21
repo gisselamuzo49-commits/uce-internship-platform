@@ -570,13 +570,7 @@ const Dashboard = () => {
               colorBg="bg-blue-50"
               colorText="text-blue-600"
             />
-            <StatCard
-              icon={FileText}
-              title="CV Cargado"
-              value="Si"
-              colorBg="bg-green-50"
-              colorText="text-green-600"
-            />
+
             <StatCard
               icon={Clock}
               title="Entrevistas"
@@ -756,11 +750,7 @@ const Dashboard = () => {
                     primary
                     onClick={() => navigate('/oportunidades')}
                   />
-                  <QuickActionCard
-                    icon={Upload}
-                    title="Subir CV"
-                    onClick={() => setShowCVModal(true)}
-                  />
+
                   <QuickActionCard
                     icon={Calendar}
                     title="Agendar Entrevista"

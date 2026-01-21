@@ -184,31 +184,6 @@ const Register = () => {
           </button>
         </form>
 
-        {/* --- AQUÍ AGREGAMOS EL BOTÓN DE GOOGLE SIN ROMPER EL DISEÑO --- */}
-
-        <div className="mt-6 mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-1/3 border-t border-gray-600"></div>
-
-            <span className="text-xs text-gray-400 font-bold uppercase">
-              O usa Google
-            </span>
-
-            <div className="w-1/3 border-t border-gray-600"></div>
-          </div>
-
-          <div className="flex justify-center">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => console.log('Login Failed')}
-              theme="filled_black"
-              shape="pill"
-              text="signup_with"
-              width="100%"
-            />
-          </div>
-        </div>
-
         <div className="text-center border-t border-gray-700 pt-4">
           <p className="text-gray-400 text-sm">
             ¿Ya tienes cuenta?{' '}
