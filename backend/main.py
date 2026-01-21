@@ -28,7 +28,7 @@ CORS(app)
 
 # --- CONFIGURACIÓN ---
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'uce_internship.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://uce_user:uce_password@postgres_db:5432/uce_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-uce'
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'uploads')

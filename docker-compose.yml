@@ -1,45 +1,52 @@
 version: '3.8'
 
 services:
-  backend:
-    build: ./backend
-    container_name: uce_backend
-    ports:
-      - "5001:5000"  # <--- IMPORTANTE: 5001 a la izquierda
-    environment:
-      - DATABASE_URL=postgresql://uce_user:uce_password@postgres:5432/uce_db
-      - MONGO_URI=mongodb://mongo:27017/
-    depends_on:
-      - postgres
-      - mongo
-    networks:
-      - uce-net
-    volumes:
-      - ./backend:/code
-
-  postgres:
+  # 1. BASE DE DATOS (PostgreSQL Real)
+  postgres_db:
     image: postgres:15-alpine
     container_name: uce_postgres
     environment:
       POSTGRES_USER: uce_user
       POSTGRES_PASSWORD: uce_password
       POSTGRES_DB: uce_db
+    ports:
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data # Persistencia de datos
     networks:
       - uce-net
 
-  mongo:
-    image: mongo:6.0
-    container_name: uce_mongo
+  # 2. BACKEND (Tu Python Flask)
+  backend:
+    build: ./backend
+    container_name: uce_backend
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_ENV=development
+    depends_on:
+      - postgres_db # Espera a que la BD inicie
     volumes:
-      - mongo_data:/data/db
+      - ./backend:/code
+    networks:
+      - uce-net
+
+  # 3. FRONTEND (Tu React Vite)
+  fronted:
+    build: ./fronted
+    container_name: uce_fronted
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./fronted:/app
+      - /app/node_modules # Truco para no borrar librerías internas
+    environment:
+      - VITE_API_URL=http://localhost:5001
     networks:
       - uce-net
 
 volumes:
   postgres_data:
-  mongo_data:
 
 networks:
   uce-net:
