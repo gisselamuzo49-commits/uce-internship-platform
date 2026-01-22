@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Ban,
   X,
-  Check,
   AlertTriangle,
 } from 'lucide-react';
 
@@ -27,14 +26,14 @@ const Opportunities = () => {
   const [loading, setLoading] = useState(true);
   const [myApplications, setMyApplications] = useState([]);
 
-  // Estado para el Modal de Borrado (Almacena el ID a borrar)
+  // Estado para el Modal de Borrado
   const [deleteId, setDeleteId] = useState(null);
 
   // Estado para Notificaciones (Toasts)
   const [notification, setNotification] = useState({
     show: false,
     message: '',
-    type: '',
+    type: '', // 'success' (Verde) o 'error' (Rojo)
   });
 
   // --- HELPER DE NOTIFICACIONES ---
@@ -73,42 +72,37 @@ const Opportunities = () => {
     }
   };
 
-  // --- LÓGICA DE BORRADO (MODAL AMARILLO) ---
-
-  // Paso 1: Abrir el modal
+  // --- LÓGICA DE BORRADO ---
   const handleDelete = (id) => {
     setDeleteId(id);
   };
 
-  // Paso 2: Confirmar y borrar
   const confirmDelete = async () => {
     if (!deleteId) return;
-
     try {
       const res = await authFetch(
         `http://localhost:5001/api/opportunities/${deleteId}`,
-        {
-          method: 'DELETE',
-        }
+        { method: 'DELETE' }
       );
 
       if (res.ok) {
         showNotification('✅ Vacante eliminada correctamente', 'success');
-        fetchData(); // Recargar lista
+        fetchData();
       } else {
         showNotification('❌ Error al eliminar la vacante', 'error');
       }
     } catch (e) {
-      console.error(e);
       showNotification('Error de conexión', 'error');
     } finally {
-      setDeleteId(null); // Cerrar modal
+      setDeleteId(null);
     }
   };
 
-  // --- LÓGICA DE POSTULACIÓN (ESTUDIANTE) ---
+  // --- LÓGICA DE POSTULACIÓN (AQUÍ ESTÁ LA MAGIA DE COLORES) ---
   const handleApply = async (oppId) => {
-    if (!user) return showNotification('Inicia sesión primero', 'error');
+    // 1. Si no hay usuario, error rojo
+    if (!user)
+      return showNotification('Debes iniciar sesión para postularte.', 'error');
 
     if (window.confirm('¿Deseas postularte a esta oferta?')) {
       try {
@@ -119,30 +113,32 @@ const Opportunities = () => {
         });
 
         if (res.ok) {
-          showNotification('✅ ¡Postulación enviada correctamente!', 'success');
-          fetchData();
+          // 2. ÉXITO -> TIPO 'success' (VERDE)
+          showNotification('✅ ¡Postulación enviada con éxito!', 'success');
+          fetchData(); // Recargar para actualizar la barra de cupos
         } else {
+          // 3. ERROR -> TIPO 'error' (ROJO)
           const err = await res.json();
-          if (err.error === 'Caducado')
+
+          if (err.error === 'Caducado') {
+            showNotification('⛔ ERROR: La fecha límite ya pasó.', 'error');
+          } else if (err.error === 'Lleno') {
+            showNotification('⛔ ERROR: Vacantes agotadas.', 'error');
+          } else {
             showNotification(
-              '⛔ ERROR: La fecha límite de esta oferta ya pasó.',
+              '❌ Error al postular. Intenta de nuevo.',
               'error'
             );
-          else if (err.error === 'Lleno')
-            showNotification(
-              '⛔ ERROR: Ya no quedan vacantes disponibles.',
-              'error'
-            );
-          else
-            showNotification('Error al postular. Intenta de nuevo.', 'error');
+          }
         }
       } catch (error) {
         console.error(error);
+        showNotification('❌ Error de conexión con el servidor.', 'error');
       }
     }
   };
 
-  // Filtros y Validaciones
+  // Filtros
   const filteredOpps = opportunities.filter(
     (o) =>
       o.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,17 +150,18 @@ const Opportunities = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8 min-h-screen relative">
-      {/* --- NOTIFICACIÓN FLOTANTE (VERDE/ROJA) --- */}
+      {/* --- NOTIFICACIÓN FLOTANTE (VERDE vs ROJO) --- */}
       {notification.show && (
         <div
-          className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+          className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white 
+          ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} // <--- AQUÍ CAMBIA EL COLOR
         >
           {notification.type === 'success' ? (
             <CheckCircle size={24} />
           ) : (
             <AlertTriangle size={24} />
           )}
-          {notification.message}
+          <span>{notification.message}</span>
           <button
             onClick={() => setNotification({ ...notification, show: false })}
             className="ml-4 hover:bg-white/20 p-1 rounded-full"
@@ -174,7 +171,7 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* --- MODAL DE ADVERTENCIA AMARILLO (ELIMINAR) --- */}
+      {/* --- MODAL DE ELIMINAR (AMARILLO) --- */}
       {deleteId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -187,8 +184,8 @@ const Opportunities = () => {
               </h3>
               <p className="text-amber-800 text-sm mt-2">
                 Estás a punto de eliminar una oferta laboral. <br />
-                <strong>Advertencia:</strong> Esto borrará también todas las
-                postulaciones de los estudiantes asociadas.
+                <strong>Advertencia:</strong> Esto borrará también las
+                postulaciones asociadas.
               </p>
             </div>
             <div className="p-4 bg-white flex gap-3 justify-center">

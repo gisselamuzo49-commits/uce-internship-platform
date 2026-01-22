@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase,
-  FileText,
   Calendar,
-  User,
   Search,
-  Upload,
   Edit,
   Building,
   X,
@@ -17,15 +15,14 @@ import {
   LayoutDashboard,
   Bell,
   Clock,
-  Loader,
-  MapPin,
   TrendingUp,
   Award,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import Notification from '../components/Notification';
+import { Skeleton } from '../components/ui/Skeleton';
 
-// --- COMPONENTES AUXILIARES ---
+// --- COMPONENTES AUXILIARES (UI) ---
 const QuickActionCard = ({
   icon: Icon,
   title,
@@ -37,7 +34,13 @@ const QuickActionCard = ({
   <button
     onClick={disabled ? null : onClick}
     disabled={disabled}
-    className={`flex items-center gap-3 p-4 rounded-xl font-bold transition-all w-full text-left active:scale-95 relative overflow-hidden ${disabled ? 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed opacity-70' : primary ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 cursor-pointer' : 'bg-white text-slate-700 border border-slate-100 hover:bg-slate-50 hover:shadow-sm cursor-pointer'}`}
+    className={`flex items-center gap-3 p-4 rounded-xl font-bold transition-all w-full text-left active:scale-95 relative overflow-hidden ${
+      disabled
+        ? 'bg-slate-50 text-slate-400 border border-slate-100 cursor-not-allowed opacity-70'
+        : primary
+          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200 cursor-pointer'
+          : 'bg-white text-slate-700 border border-slate-100 hover:bg-slate-50 hover:shadow-sm cursor-pointer'
+    }`}
   >
     <Icon
       size={20}
@@ -91,7 +94,9 @@ const ApplicationCard = ({ title, subtitle, status, date }) => {
       </div>
       <div className="text-right">
         <span
-          className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${statusColors[status] || 'bg-slate-100 text-slate-700'}`}
+          className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+            statusColors[status] || 'bg-slate-100 text-slate-700'
+          }`}
         >
           {status}
         </span>
@@ -118,20 +123,106 @@ const ModalOverlay = ({ title, onClose, children }) => (
   </div>
 );
 
+const StatSkeleton = () => (
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 h-full">
+    <Skeleton className="h-16 w-16 rounded-xl" />
+    <div className="space-y-2 flex-1">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-8 w-16" />
+    </div>
+  </div>
+);
+
 // --- DASHBOARD PRINCIPAL ---
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isAdmin = user?.role === 'admin';
 
-  const [listData, setListData] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [approvedApps, setApprovedApps] = useState([]);
-  const [myAppointments, setMyAppointments] = useState([]);
-  const [adminStats, setAdminStats] = useState([]);
-  const [studentScore, setStudentScore] = useState(0);
+  const COLORS = ['#10B981', '#F59E0B', '#F43F5E'];
 
-  // Estados de Modales
+  // --- 1. QUERY DE APLICACIONES (POSTULACIONES) ---
+  const { data: applications = [], isLoading: loadingApps } = useQuery({
+    queryKey: ['applications', isAdmin ? 'admin' : 'student'],
+    queryFn: async () => {
+      const endpoint = isAdmin
+        ? 'http://localhost:5001/api/admin/applications'
+        : 'http://localhost:5001/api/applications';
+      const res = await authFetch(endpoint);
+      if (!res.ok) throw new Error('Error fetching applications');
+      return res.json();
+    },
+    staleTime: 1000 * 60, // Cache de 1 min
+  });
+
+  // --- 2. QUERY DE CITAS ---
+  const { data: myAppointments = [], isLoading: loadingAppts } = useQuery({
+    queryKey: ['appointments'],
+    queryFn: async () => {
+      const res = await authFetch('http://localhost:5001/api/appointments');
+      if (!res.ok) throw new Error('Error fetching appointments');
+      return res.json();
+    },
+  });
+
+  // --- 3. QUERY DE VACANTES (Vital para el número de vacantes) ---
+  const { data: opportunities = [], isLoading: loadingOpps } = useQuery({
+    queryKey: ['opportunities'],
+    queryFn: async () => {
+      // Usamos fetch normal para asegurar lectura
+      const res = await fetch('http://localhost:5001/api/opportunities');
+      if (!res.ok) throw new Error('Error fetching opportunities');
+      return res.json();
+    },
+  });
+
+  // --- 4. QUERY DE PERFIL ---
+  const { data: profileData } = useQuery({
+    queryKey: ['profile', user?.id],
+    queryFn: async () => {
+      const res = await authFetch(
+        `http://localhost:5001/api/profile/${user.id}`
+      );
+      if (!res.ok) throw new Error('Error fetching profile');
+      return res.json();
+    },
+    enabled: !!user && !isAdmin,
+  });
+
+  // --- CÁLCULOS EN TIEMPO REAL (Las Matemáticas) ---
+
+  // Filtros
+  const pendingApps = applications.filter((app) => app.status === 'Pendiente');
+  const approvedApps = applications.filter((app) => app.status === 'Aprobado');
+  const rejectedApps = applications.filter((app) => app.status === 'Rechazado');
+
+  // Notificaciones
+  const notifications = isAdmin
+    ? pendingApps
+    : applications.filter((app) => app.status !== 'Pendiente');
+
+  // Datos para la lista visual (Admin ve ultimas 5, Student ve todas)
+  const listData = isAdmin
+    ? [...applications].reverse().slice(0, 5)
+    : applications;
+
+  // Datos para la gráfica de pastel
+  const adminStats = [
+    { name: 'Aprobados', value: approvedApps.length },
+    { name: 'Pendientes', value: pendingApps.length },
+    { name: 'Rechazados', value: rejectedApps.length },
+  ];
+
+  // Score del estudiante
+  let studentScore = 20;
+  if (applications.length > 0) studentScore += 40;
+  if (profileData?.certifications?.length > 0) studentScore += 40;
+
+  // Estado general de carga
+  const isLoading = loadingApps || loadingAppts || loadingOpps;
+
+  // --- ESTADOS UI ---
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showOppModal, setShowOppModal] = useState(false);
@@ -140,7 +231,6 @@ const Dashboard = () => {
   const [creatingOpp, setCreatingOpp] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
-  // --- AQUI AGREGAMOS LOS CAMPOS NUEVOS AL ESTADO ---
   const [oppData, setOppData] = useState({
     title: '',
     company: '',
@@ -160,73 +250,7 @@ const Dashboard = () => {
     time: '',
   });
 
-  const COLORS = ['#10B981', '#F59E0B', '#F43F5E'];
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const endpoint = isAdmin
-          ? 'http://localhost:5001/api/admin/applications'
-          : 'http://localhost:5001/api/applications';
-        const resApps = await authFetch(endpoint);
-        let currentApps = [];
-
-        if (resApps.ok) {
-          const data = await resApps.json();
-          currentApps = data;
-
-          if (isAdmin) {
-            const pending = data.filter((app) => app.status === 'Pendiente');
-            const approved = data.filter((app) => app.status === 'Aprobado');
-            const rejected = data.filter((app) => app.status === 'Rechazado');
-            setNotifications(pending);
-            setListData(data.reverse().slice(0, 5));
-            setAdminStats([
-              { name: 'Aprobados', value: approved.length },
-              { name: 'Pendientes', value: pending.length },
-              { name: 'Rechazados', value: rejected.length },
-            ]);
-          } else {
-            setListData(data);
-            setNotifications(data.filter((app) => app.status !== 'Pendiente'));
-            setApprovedApps(data.filter((app) => app.status === 'Aprobado'));
-          }
-        }
-
-        // Citas
-        const resCitas = await authFetch(
-          'http://localhost:5001/api/appointments'
-        );
-        if (resCitas.ok) setMyAppointments(await resCitas.json());
-
-        // Score
-        if (!isAdmin && user) {
-          const resProfile = await authFetch(
-            `http://localhost:5001/api/profile/${user.id}`
-          );
-          if (resProfile.ok) {
-            const profileData = await resProfile.json();
-            let score = 20;
-            if (currentApps.length > 0) score += 40;
-            if (
-              profileData.certifications &&
-              profileData.certifications.length > 0
-            )
-              score += 40;
-            setStudentScore(score);
-          }
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    fetchData();
-    const intervalId = setInterval(fetchData, 5000);
-    return () => clearInterval(intervalId);
-  }, [user, isAdmin, authFetch]);
-
-  // Handlers
+  // --- HANDLERS ---
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -257,6 +281,7 @@ const Dashboard = () => {
       setUploading(false);
     }
   };
+
   const handleScheduleSubmit = async (e) => {
     e.preventDefault();
     if (!appointmentData.appId) return;
@@ -274,6 +299,7 @@ const Dashboard = () => {
       if (res.ok) {
         setShowCalendarModal(false);
         setVisualNotification({ message: '✅ Cita Agendada', type: 'success' });
+        queryClient.invalidateQueries({ queryKey: ['appointments'] });
       }
     } catch (e) {
     } finally {
@@ -281,7 +307,6 @@ const Dashboard = () => {
     }
   };
 
-  // --- HANDLER ACTUALIZADO PARA ENVIAR VACANTES Y FECHA ---
   const handleCreateOpportunity = async (e) => {
     e.preventDefault();
     setCreatingOpp(true);
@@ -305,6 +330,8 @@ const Dashboard = () => {
           vacancies: 1,
         });
         setShowOppModal(false);
+        // ACTUALIZAR CONTADOR AL INSTANTE
+        queryClient.invalidateQueries({ queryKey: ['opportunities'] });
       }
     } catch (e) {
     } finally {
@@ -401,7 +428,6 @@ const Dashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* --- MODAL DE NUEVA VACANTE (ACTUALIZADO) --- */}
       {showOppModal && (
         <ModalOverlay
           title="Nueva Vacante"
@@ -428,8 +454,6 @@ const Dashboard = () => {
               className="w-full p-3 border rounded-xl"
               required
             />
-
-            {/* NUEVOS CAMPOS */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
@@ -461,7 +485,6 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-
             <textarea
               placeholder="Descripción"
               value={oppData.description}
@@ -510,6 +533,9 @@ const Dashboard = () => {
           {showNotifDropdown && (
             <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-4">
               <h4 className="font-bold mb-2">Notificaciones</h4>
+              {notifications.length === 0 && (
+                <p className="text-xs text-gray-400">Sin notificaciones</p>
+              )}
               {notifications.map((n) => (
                 <div key={n.id} className="text-sm py-2 border-b">
                   {n.opportunity_title} ({n.status})
@@ -520,31 +546,38 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* STATS */}
+      {/* STATS CON SKELETON */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {isAdmin ? (
+        {isLoading ? (
+          <>
+            <StatSkeleton />
+            <StatSkeleton />
+            <StatSkeleton />
+            <StatSkeleton />
+          </>
+        ) : isAdmin ? (
           <>
             <StatCard
               icon={Briefcase}
               title="Vacantes"
-              value="12"
+              // CORRECCIÓN 1: Cuenta real de vacantes desde DB
+              value={opportunities.length || '0'}
               colorBg="bg-blue-50"
               colorText="text-blue-600"
             />
             <StatCard
               icon={Users}
               title="Postulantes"
-              value={
-                listData.reduce((acc, curr) => acc + (isAdmin ? 1 : 0), 0) ||
-                '0'
-              }
+              // CORRECCIÓN 2: Cuenta real de todos los estudiantes postulados
+              value={applications.length || '0'}
               colorBg="bg-green-50"
               colorText="text-green-600"
             />
             <StatCard
               icon={CheckCircle}
               title="Contratados"
-              value="5"
+              // CORRECCIÓN 3: Cuenta real de Aprobados
+              value={approvedApps.length || '0'}
               colorBg="bg-purple-50"
               colorText="text-purple-600"
             />
@@ -566,7 +599,7 @@ const Dashboard = () => {
             <StatCard
               icon={Briefcase}
               title="Postulaciones"
-              value={listData.length}
+              value={applications.length}
               colorBg="bg-blue-50"
               colorText="text-blue-600"
             />
@@ -589,9 +622,11 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* GRÁFICAS */}
+      {/* GRÁFICAS CON SKELETON */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {isAdmin ? (
+        {isLoading ? (
+          <Skeleton className="col-span-3 h-64 w-full rounded-2xl" />
+        ) : isAdmin ? (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 col-span-3 flex flex-col md:flex-row items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -648,7 +683,9 @@ const Dashboard = () => {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-sm">
                   <div
-                    className={`p-1 rounded-full ${studentScore >= 20 ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                    className={`p-1 rounded-full ${
+                      studentScore >= 20 ? 'bg-emerald-500' : 'bg-slate-700'
+                    }`}
                   >
                     <CheckCircle size={14} />
                   </div>
@@ -662,7 +699,9 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <div
-                    className={`p-1 rounded-full ${studentScore >= 60 ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                    className={`p-1 rounded-full ${
+                      studentScore >= 60 ? 'bg-emerald-500' : 'bg-slate-700'
+                    }`}
                   >
                     <CheckCircle size={14} />
                   </div>
@@ -676,7 +715,9 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <div
-                    className={`p-1 rounded-full ${studentScore >= 100 ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                    className={`p-1 rounded-full ${
+                      studentScore >= 100 ? 'bg-emerald-500' : 'bg-slate-700'
+                    }`}
                   >
                     <CheckCircle size={14} />
                   </div>
@@ -739,6 +780,7 @@ const Dashboard = () => {
                   <QuickActionCard
                     icon={Users}
                     title="Ver Postulaciones"
+                    // CORRECCIÓN 4: Navegación correcta a la pantalla de Excel
                     onClick={() => navigate('/admin/postulaciones')}
                   />
                 </>
@@ -776,7 +818,13 @@ const Dashboard = () => {
               Actividad Reciente
             </h2>
             <div className="space-y-4">
-              {listData.length === 0 ? (
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                </>
+              ) : listData.length === 0 ? (
                 <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                   <p className="text-slate-400 font-medium">Sin actividad.</p>
                 </div>

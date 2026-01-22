@@ -8,7 +8,8 @@ import os
 import datetime
 import io
 import requests
-import textwrap # Para el PDF del Memorando
+import textwrap
+from datetime import timedelta
 
 # --- LIBRERÍAS DE GOOGLE ---
 from google.oauth2 import id_token
@@ -32,6 +33,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://uce_user:uce_password@post
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-uce'
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'uploads')
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=7) # Token dura 7 días
 
 # 📧 CONFIGURACIÓN DEL CORREO
 SMTP_EMAIL = "siiuconecta@gmail.com" 
@@ -95,7 +97,16 @@ class Opportunity(db.Model):
     deadline = db.Column(db.String(20), nullable=True)
     vacancies = db.Column(db.Integer, default=1) 
     def to_dict(self):
-        return {'id': self.id, 'title': self.title, 'company': self.company, 'description': self.description, 'location': self.location, 'deadline': self.deadline, 'vacancies': self.vacancies, 'applicants_count': len(self.applications)}
+        return {
+            'id': self.id, 
+            'title': self.title, 
+            'company': self.company, 
+            'description': self.description, 
+            'location': self.location, 
+            'deadline': self.deadline, 
+            'vacancies': self.vacancies, 
+            'applicants_count': len(self.applications)
+        }
 
 class Application(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -134,7 +145,6 @@ with app.app_context():
 
 # ================= FUNCIONES DE CORREO =================
 
-# 1. FUNCIÓN PARA CITAS (La que ya tenías)
 def send_email_confirmation(to_email, student_name, company, date, time):
     print(f"🚀 INICIANDO CORREO CITA A: {to_email}...") 
     try:
@@ -157,7 +167,6 @@ def send_email_confirmation(to_email, student_name, company, date, time):
         print(f"❌ Error Correo Cita: {e}")
         return False
 
-# 2. NUEVA FUNCIÓN PARA BIENVENIDA (Registro)
 def send_welcome_email(to_email, name):
     print(f"🚀 INICIANDO CORREO BIENVENIDA A: {to_email}...")
     try:
@@ -206,7 +215,7 @@ def register():
     db.session.add(user)
     db.session.commit()
 
-    # 2. Enviar Correo de Bienvenida (NUEVO)
+    # 2. Enviar Correo de Bienvenida
     send_welcome_email(user.email, user.name)
 
     return jsonify({'message': 'Usuario creado'}), 201
@@ -233,7 +242,6 @@ def google_login():
             user = User(name=name, email=email, password=dummy_password, role='student')
             db.session.add(user)
             db.session.commit()
-            # Opcional: Enviar bienvenida también si se registra con Google por primera vez
             send_welcome_email(email, name)
             
         access_token = create_access_token(identity=str(user.id))
@@ -350,7 +358,36 @@ def get_cv(student_id):
     try: return send_from_directory(app.config['UPLOAD_FOLDER'], f"cv_{student_id}.pdf")
     except: return jsonify({'error': 'CV not found'}), 404
 
-# ================= PDF CON EXPERIENCIA + MEMORANDO CORREGIDO =================
+# ================= REPORTES Y PDFS =================
+
+# --- RUTA NUEVA PARA REPORTE EXCEL (CRUCE DE DATOS) ---
+@app.route('/api/admin/daily-report', methods=['GET'])
+@jwt_required()
+def daily_report():
+    date_param = request.args.get('date', datetime.datetime.now().strftime("%Y-%m-%d"))
+    try:
+        apps = Application.query.filter_by(status='Aprobado', date=date_param).all()
+        report_data = []
+        for app in apps:
+            student = User.query.get(app.student_id)
+            opp = app.opportunity
+            tutor_req = TutorRequest.query.filter_by(student_id=student.id).first()
+            row = {
+                "fecha_aprobacion": app.date,
+                "estudiante": student.name,
+                "email": student.email,
+                "empresa": opp.company,
+                "cargo": opp.title,
+                "documentacion_subida": "SÍ" if tutor_req else "NO",
+                "estado_tutor": tutor_req.status if tutor_req else "Sin Solicitud",
+                "nombre_tutor": tutor_req.tutor_name if (tutor_req and tutor_req.tutor_name) else "Por asignar"
+            }
+            report_data.append(row)
+        return jsonify(report_data), 200
+    except Exception as e:
+        print(f"Error reporte: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/admin/export-pdf/<int:student_id>', methods=['GET'])
 @jwt_required()
 def export_pdf(student_id):
@@ -441,7 +478,6 @@ def export_pdf(student_id):
     response.headers['Content-Type'] = 'application/pdf'
     return response
 
-# RUTA MEMORANDO CORREGIDA (TEXTWRAP)
 @app.route('/api/admin/export-assignment/<int:request_id>', methods=['GET'])
 @jwt_required()
 def export_assignment_pdf(request_id):
@@ -483,14 +519,19 @@ def export_assignment_pdf(request_id):
     response.headers['Content-Type'] = 'application/pdf'
     return response
 
-# ================= RUTAS APLICACIONES/OPORTUNIDADES =================
+# ================= RUTAS APLICACIONES/OPORTUNIDADES (UNIFICADAS) =================
+
 @app.route('/api/opportunities', methods=['GET', 'POST'])
 def handle_opportunities():
+    # 1. SI ES POST (CREAR)
     if request.method == 'POST':
         data = request.json
         new_opp = Opportunity(title=data['title'], company=data['company'], description=data['description'], location=data.get('location', 'Quito'), deadline=data.get('deadline'), vacancies=int(data.get('vacancies', 1)))
-        db.session.add(new_opp); db.session.commit()
+        db.session.add(new_opp)
+        db.session.commit()
         return jsonify({'message': 'Created'}), 201
+    
+    # 2. SI ES GET (LEER) - PARA QUE EL CONTADOR FUNCIONE
     return jsonify([o.to_dict() for o in Opportunity.query.all()]), 200
 
 @app.route('/api/opportunities/<int:id>', methods=['DELETE'])
