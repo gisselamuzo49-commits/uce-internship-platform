@@ -15,8 +15,9 @@ import NewOpportunity from './pages/NewOpportunity';
 import MyApplications from './pages/MyApplications';
 import UserProfile from './pages/Profile';
 
-// Esta es la pagina del Excel (Asegurate que el archivo exista en src/pages/Postulantes.jsx)
-import Postulantes from './pages/Postulantes';
+// Importamos las DOS páginas de admin
+import AdminRequests from './pages/AdminRequests'; // Panel de Gestión
+import Postulantes from './pages/Postulantes'; // Reportes Excel
 
 function App() {
   return (
@@ -28,23 +29,30 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Rutas Privadas con el Diseño Principal (Barra lateral, etc) */}
+            {/* Rutas Privadas con el Diseño Principal */}
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/oportunidades" element={<Opportunities />} />
               <Route path="/perfil" element={<UserProfile />} />
 
-              {/* --- AQUÍ ESTABA EL ERROR: AHORA ESTÁ CORREGIDO --- */}
-              {/* Esta ruta carga la tabla con el botón de Excel */}
-              <Route path="/admin/postulaciones" element={<Postulantes />} />
+              {/* --- ZONA ADMINISTRADOR --- */}
 
+              {/* 1. GESTIÓN: Panel avanzado (Aprobar/Rechazar/Tutores) */}
+              <Route path="/admin/postulaciones" element={<AdminRequests />} />
+
+              {/* 2. REPORTES: Tabla simple y descarga de Excel */}
+              <Route path="/admin/reportes" element={<Postulantes />} />
+
+              {/* 3. CREAR VACANTE */}
               <Route
                 path="/admin/nueva-oportunidad"
                 element={<NewOpportunity />}
               />
+
+              {/* --- ZONA ESTUDIANTE --- */}
               <Route path="/mis-postulaciones" element={<MyApplications />} />
 
-              {/* Redirección por defecto */}
+              {/* Redirección por defecto (Siempre al final) */}
               <Route path="/" element={<Navigate to="/dashboard" />} />
             </Route>
           </Routes>

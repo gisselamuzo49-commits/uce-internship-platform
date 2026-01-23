@@ -75,7 +75,8 @@ const StatCard = ({ icon: Icon, title, value, colorBg, colorText }) => (
   </div>
 );
 
-const ApplicationCard = ({ title, subtitle, status, date }) => {
+// Agrega "tags" aquí en los parámetros vvvvv
+const ApplicationCard = ({ title, subtitle, status, date, tags }) => {
   const statusColors = {
     Pendiente: 'bg-yellow-100 text-yellow-700',
     Aprobado: 'bg-emerald-100 text-emerald-700',
@@ -90,6 +91,21 @@ const ApplicationCard = ({ title, subtitle, status, date }) => {
         <div>
           <h3 className="font-bold text-slate-800">{title}</h3>
           <p className="text-sm text-slate-500">{subtitle}</p>
+
+          {/* --- INICIO DEL CAMBIO: PEGA ESTO AQUÍ --- */}
+          {tags && tags.skills && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {tags.skills.map((skill, index) => (
+                <span
+                  key={index}
+                  className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* --- FIN DEL CAMBIO --- */}
         </div>
       </div>
       <div className="text-right">
@@ -840,6 +856,7 @@ const Dashboard = () => {
                     }
                     status={item.status}
                     date={item.date}
+                    tags={item.attributes}
                   />
                 ))
               )}

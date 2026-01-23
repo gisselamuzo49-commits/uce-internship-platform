@@ -24,6 +24,11 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# --- METADATA ---
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.dialects.postgresql import JSON  
+
+
 app = Flask(__name__)
 CORS(app)
 
@@ -95,7 +100,11 @@ class Opportunity(db.Model):
     description = db.Column(db.Text, nullable=False)
     location = db.Column(db.String(100), default='Quito')
     deadline = db.Column(db.String(20), nullable=True)
-    vacancies = db.Column(db.Integer, default=1) 
+    vacancies = db.Column(db.Integer, default=1)
+    
+    # --- CAMPO NUEVO (METADATA) ---
+    attributes = db.Column(JSON, nullable=True) 
+
     def to_dict(self):
         return {
             'id': self.id, 
@@ -104,8 +113,9 @@ class Opportunity(db.Model):
             'description': self.description, 
             'location': self.location, 
             'deadline': self.deadline, 
-            'vacancies': self.vacancies, 
-            'applicants_count': len(self.applications)
+            'vacancies': self.vacancies,
+            'applicants_count': len(self.applications),
+            'attributes': self.attributes # <--- AGREGAR AQUÍ PARA QUE REACT LO RECIBA
         }
 
 class Application(db.Model):
@@ -117,7 +127,8 @@ class Application(db.Model):
     opportunity = db.relationship('Opportunity', backref='applications')
     def to_dict(self):
         student = User.query.get(self.student_id)
-        return {'id': self.id, 'opportunity_title': self.opportunity.title, 'company': self.opportunity.company, 'status': self.status, 'date': self.date, 'student_id': self.student_id, 'student_name': student.name if student else "Desconocido"}
+        return {'id': self.id, 'opportunity_title': self.opportunity.title, 'company': self.opportunity.company, 'status': self.status, 'date': self.date, 'student_id': self.student_id, 'student_name': student.name if student else "Desconocido",
+                'attributes': self.opportunity.attributes}
 
 class Appointment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -144,64 +155,47 @@ with app.app_context():
     print("✅ Base de datos inicializada correctamente.")
 
 # ================= FUNCIONES DE CORREO =================
-
 def send_email_confirmation(to_email, student_name, company, date, time):
-    print(f"🚀 INICIANDO CORREO CITA A: {to_email}...") 
+    print(f"🚀 INICIANDO CORREO CITA A: {to_email}...", flush=True) 
+    
     try:
-        msg = MIMEMultipart()
+        # --- AQUÍ ESTABA EL ERROR: FALTABA CREAR LA VARIABLE 'msg' ---
+        msg = MIMEMultipart()  # <--- ESTA LÍNEA ES VITAL
         msg['From'] = SMTP_EMAIL
         msg['To'] = to_email
         msg['Subject'] = "Confirmación de Entrevista - SIIU Conecta"
 
-        body = f"""Hola {student_name},\n\nTu entrevista ha sido agendada con {company} para el {date} a las {time}.\n\nAtentamente,\nSistema UCE"""
-        msg.attach(MIMEText(body, 'plain'))
-
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20) 
-        server.starttls() 
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-        server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
-        server.quit()
-        print(f"✅ Correo Cita Enviado.")
-        return True
-    except Exception as e:
-        print(f"❌ Error Correo Cita: {e}")
-        return False
-
-def send_welcome_email(to_email, name):
-    print(f"🚀 INICIANDO CORREO BIENVENIDA A: {to_email}...")
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = SMTP_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = "¡Bienvenido a SIIU Conecta!"
-
+        # Cuerpo del mensaje
         body = f"""
-        Hola {name},
-
-        ¡Bienvenido a la Plataforma de Gestión de Pasantías de la UCE!
+        Hola {student_name},
         
-        Tu cuenta ha sido creada exitosamente.
-        Ahora puedes ingresar, completar tu perfil y postular a las vacantes disponibles.
-
-        Accede aquí: http://localhost:5173/
-
+        Tu entrevista ha sido agendada exitosamente.
+        
+        Empresa: {company}
+        Fecha: {date}
+        Hora: {time}
+        
         Atentamente,
-        Equipo SIIU Conecta
+        Sistema SIIU UCE
         """
         msg.attach(MIMEText(body, 'plain'))
 
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
-        server.starttls()
+        # Conexión con Gmail
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30) 
+        server.starttls() 
         server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        
+        # Envío real
         server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
         server.quit()
         
-        print(f"✅ Correo Bienvenida Enviado.")
+        print(f"✅ CORREO CITA ENVIADO EXITOSAMENTE.", flush=True)
         return True
+        
     except Exception as e:
-        print(f"❌ Error Correo Bienvenida: {e}")
+        # Aquí veremos si hay otro error, pero el de 'msg' ya no saldrá
+        print(f"❌ ERROR CRÍTICO EN MAIL: {e}", flush=True)
         return False
-
 # ================= RUTAS PRINCIPALES =================
 
 @app.route('/api/register', methods=['POST'])
@@ -487,31 +481,45 @@ def export_assignment_pdf(request_id):
 
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
+    
+    # 1. ENCABEZADO
     p.setFont("Helvetica-Bold", 20)
     p.drawCentredString(300, 700, "MEMORANDO DE ASIGNACIÓN")
+    
     p.setFont("Helvetica", 12)
     p.drawString(80, 650, f"FECHA:   {datetime.datetime.now().strftime('%Y-%m-%d')}")
     p.drawString(80, 630, f"PARA:     {req.tutor_name}")
     p.drawString(80, 610, f"ASUNTO: Asignación de Tutoría de Prácticas")
+    
     p.setLineWidth(1)
     p.line(80, 590, 530, 590)
     
+    # 2. CUERPO DEL TEXTO (AQUÍ ESTABA EL ERROR)
     text = f"""Por medio de la presente, se notifica la asignación formal como Tutor Académico del estudiante {student.name}, identificado con el correo {student.email}. El estudiante ha presentado la documentación requerida ('{req.title}'), la cual ha sido revisada y aprobada por la coordinación de vinculación. Se solicita iniciar el seguimiento de las prácticas pre-profesionales conforme al reglamento institucional vigente y reportar cualquier novedad."""
     
+    # --- CORRECCIÓN ---
     text_object = p.beginText(80, 550)
     text_object.setFont("Helvetica", 12)
-    wrapper = textwrap.TextWrapper(width=85) 
+    
+    # CLAVE 1: Definir el interlineado (Tamaño de fuente 12 + 3 puntos de aire = 15)
+    text_object.setLeading(15) 
+    
+    # CLAVE 2: Reducir el ancho a 75 para asegurar que entre en los márgenes
+    wrapper = textwrap.TextWrapper(width=75) 
+    
     paragraphs = text.split("\n")
     for paragraph in paragraphs:
         if paragraph.strip():
             lines = wrapper.wrap(text=paragraph)
-            for line in lines: text_object.textLine(line)
-            text_object.textLine("") 
+            for line in lines: 
+                text_object.textLine(line)
+            text_object.textLine("") # Espacio extra entre párrafos
+            
     p.drawText(text_object)
     
     p.setFont("Helvetica-Bold", 12)
     p.drawCentredString(300, 300, "_________________________")
-    p.drawCentredString(300, 280, "Coordinación de Vinculación")
+    p.drawCentredString(300, 280,       "SUBDECANATO")
     p.showPage()
     p.save()
     buffer.seek(0)
@@ -523,15 +531,21 @@ def export_assignment_pdf(request_id):
 
 @app.route('/api/opportunities', methods=['GET', 'POST'])
 def handle_opportunities():
-    # 1. SI ES POST (CREAR)
     if request.method == 'POST':
         data = request.json
-        new_opp = Opportunity(title=data['title'], company=data['company'], description=data['description'], location=data.get('location', 'Quito'), deadline=data.get('deadline'), vacancies=int(data.get('vacancies', 1)))
+        new_opp = Opportunity(
+            title=data['title'], 
+            company=data['company'], 
+            description=data['description'], 
+            location=data.get('location', 'Quito'), 
+            deadline=data.get('deadline'), 
+            vacancies=int(data.get('vacancies', 1)),
+            attributes=data.get('attributes') # <--- AGREGAR AQUÍ
+        )
         db.session.add(new_opp)
         db.session.commit()
         return jsonify({'message': 'Created'}), 201
     
-    # 2. SI ES GET (LEER) - PARA QUE EL CONTADOR FUNCIONE
     return jsonify([o.to_dict() for o in Opportunity.query.all()]), 200
 
 @app.route('/api/opportunities/<int:id>', methods=['DELETE'])

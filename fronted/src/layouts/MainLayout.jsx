@@ -7,37 +7,73 @@ import {
   Search,
   LogOut,
   User,
-  Menu,
-  Bell,
+  FileSpreadsheet, // Icono para el Excel (Postulantes)
+  FileText, // Icono para Mis Postulaciones (Estudiante)
+  PlusCircle, // Icono para Nueva Oportunidad
   Users,
-} from 'lucide-react'; //
+} from 'lucide-react';
 
 const MainLayout = () => {
   const { logout, user } = useAuth();
   const location = useLocation();
 
-  const menuItems =
-    user?.role === 'admin'
-      ? [
-          { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-          {
-            path: '/oportunidades',
-            icon: Briefcase,
-            label: 'Gestionar Ofertas',
-          },
-          { path: '/postulantes', icon: Users, label: 'Postulantes' },
-        ]
-      : [
-          { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-          {
-            path: '/oportunidades',
-            icon: Search,
-            label: 'Buscar Oportunidades',
-          },
-        ];
+  // Verificación robusta de Admin (Mayúscula o minúscula)
+  const isAdmin = user?.role === 'admin' || user?.role === 'Admin';
+
+  const menuItems = isAdmin
+    ? [
+        // --- MENÚ ADMINISTRADOR ---
+        {
+          path: '/dashboard',
+          icon: LayoutDashboard,
+          label: 'Dashboard',
+        },
+        {
+          // ESTE ES EL PANEL DE GESTIÓN (Aprobar/Rechazar)
+          path: '/admin/postulaciones',
+          icon: Briefcase,
+          label: 'Gestionar Solicitudes',
+        },
+        {
+          // ESTE ES EL DE EXCEL (Lo que pediste)
+          // Apunta a '/admin/reportes' que en App.jsx carga Postulantes.jsx
+          path: '/admin/reportes',
+          icon: FileSpreadsheet,
+          label: 'Postulantes (Excel)',
+        },
+        {
+          path: '/admin/nueva-oportunidad',
+          icon: PlusCircle,
+          label: 'Nueva Oportunidad',
+        },
+      ]
+    : [
+        // --- MENÚ ESTUDIANTE ---
+        {
+          path: '/dashboard',
+          icon: LayoutDashboard,
+          label: 'Dashboard',
+        },
+        {
+          path: '/oportunidades',
+          icon: Search,
+          label: 'Buscar Oportunidades',
+        },
+        {
+          path: '/mis-postulaciones',
+          icon: FileText,
+          label: 'Mis Postulaciones',
+        },
+        {
+          path: '/perfil',
+          icon: User,
+          label: 'Mi Perfil',
+        },
+      ];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex font-sans">
+      {/* --- SIDEBAR INTEGRADO --- */}
       <aside className="w-64 bg-[#0f172a] text-white flex flex-col fixed h-full z-50">
         <div className="h-20 flex items-center px-6 gap-3 border-b border-white/5">
           <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black shadow-lg">
@@ -51,7 +87,7 @@ const MainLayout = () => {
           </div>
         </div>
 
-        <nav className="p-4 mt-4 flex-1 space-y-1">
+        <nav className="p-4 mt-4 flex-1 space-y-1 overflow-y-auto">
           {menuItems.map((item) => (
             <Link
               key={item.path}
@@ -69,6 +105,10 @@ const MainLayout = () => {
         </nav>
 
         <div className="p-4 border-t border-white/5">
+          <div className="mb-4 px-2">
+            <p className="text-xs font-bold text-white">{user?.name}</p>
+            <p className="text-[10px] text-slate-500 uppercase">{user?.role}</p>
+          </div>
           <button
             onClick={logout}
             className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-bold"
@@ -79,20 +119,13 @@ const MainLayout = () => {
         </div>
       </aside>
 
+      {/* --- CONTENIDO PRINCIPAL --- */}
       <main className="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
         <header className="bg-white/80 backdrop-blur-md h-16 flex items-center px-8 justify-between border-b border-slate-100 z-40">
           <div className="text-sm font-semibold text-slate-400 italic uppercase tracking-tighter">
             SIIU CONECTA Portal
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-bold text-slate-900 leading-none uppercase">
-                {user?.name}
-              </p>
-              <p className="text-[10px] text-indigo-600 uppercase font-black mt-1 tracking-wider italic">
-                {user?.role}
-              </p>
-            </div>
             <Link
               to="/perfil"
               className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center font-bold border-2 border-white shadow-md hover:scale-110 transition-transform cursor-pointer uppercase"
@@ -101,7 +134,9 @@ const MainLayout = () => {
             </Link>
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-10">
+
+        {/* Aquí se renderizan las páginas (Postulantes.jsx, AdminRequests.jsx, etc) */}
+        <div className="flex-1 overflow-auto p-10 bg-slate-50">
           <Outlet />
         </div>
       </main>

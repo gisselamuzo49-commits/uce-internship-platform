@@ -14,6 +14,7 @@ import {
   Ban,
   X,
   AlertTriangle,
+  HelpCircle, // Icono para la pregunta
 } from 'lucide-react';
 
 const Opportunities = () => {
@@ -26,8 +27,11 @@ const Opportunities = () => {
   const [loading, setLoading] = useState(true);
   const [myApplications, setMyApplications] = useState([]);
 
-  // Estado para el Modal de Borrado
+  // Estado para el Modal de Borrado (Admin)
   const [deleteId, setDeleteId] = useState(null);
+
+  // NUEVO: Estado para el Modal de Postulación (Estudiante)
+  const [applyId, setApplyId] = useState(null);
 
   // Estado para Notificaciones (Toasts)
   const [notification, setNotification] = useState({
@@ -72,11 +76,7 @@ const Opportunities = () => {
     }
   };
 
-  // --- LÓGICA DE BORRADO ---
-  const handleDelete = (id) => {
-    setDeleteId(id);
-  };
-
+  // --- LÓGICA DE BORRADO (ADMIN) ---
   const confirmDelete = async () => {
     if (!deleteId) return;
     try {
@@ -98,43 +98,47 @@ const Opportunities = () => {
     }
   };
 
-  // --- LÓGICA DE POSTULACIÓN (AQUÍ ESTÁ LA MAGIA DE COLORES) ---
-  const handleApply = async (oppId) => {
-    // 1. Si no hay usuario, error rojo
+  // --- LÓGICA DE POSTULACIÓN (ESTUDIANTE) ---
+
+  // 1. Abrir el modal de pregunta
+  const handleApplyClick = (oppId) => {
     if (!user)
       return showNotification('Debes iniciar sesión para postularte.', 'error');
+    setApplyId(oppId); // Esto abre el modal azul
+  };
 
-    if (window.confirm('¿Deseas postularte a esta oferta?')) {
-      try {
-        const res = await authFetch('http://localhost:5001/api/applications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ opportunity_id: oppId }),
-        });
+  // 2. Confirmar la postulación (Al dar clic en "Sí, Postularme")
+  const confirmPostulation = async () => {
+    if (!applyId) return;
 
-        if (res.ok) {
-          // 2. ÉXITO -> TIPO 'success' (VERDE)
-          showNotification('✅ ¡Postulación enviada con éxito!', 'success');
-          fetchData(); // Recargar para actualizar la barra de cupos
+    try {
+      const res = await authFetch('http://localhost:5001/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity_id: applyId }),
+      });
+
+      if (res.ok) {
+        // --- AQUÍ SALE EL MENSAJE VERDE DE ÉXITO ---
+        showNotification('✅ ¡Postulación enviada con éxito!', 'success');
+        fetchData();
+      } else {
+        // --- AQUÍ SALE EL MENSAJE ROJO DE ERROR ---
+        const err = await res.json();
+
+        if (err.error === 'Caducado') {
+          showNotification('⛔ ERROR: La fecha límite ya pasó.', 'error');
+        } else if (err.error === 'Lleno') {
+          showNotification('⛔ ERROR: Vacantes agotadas.', 'error');
         } else {
-          // 3. ERROR -> TIPO 'error' (ROJO)
-          const err = await res.json();
-
-          if (err.error === 'Caducado') {
-            showNotification('⛔ ERROR: La fecha límite ya pasó.', 'error');
-          } else if (err.error === 'Lleno') {
-            showNotification('⛔ ERROR: Vacantes agotadas.', 'error');
-          } else {
-            showNotification(
-              '❌ Error al postular. Intenta de nuevo.',
-              'error'
-            );
-          }
+          showNotification('❌ Error al postular. Intenta de nuevo.', 'error');
         }
-      } catch (error) {
-        console.error(error);
-        showNotification('❌ Error de conexión con el servidor.', 'error');
       }
+    } catch (error) {
+      console.error(error);
+      showNotification('❌ Error de conexión con el servidor.', 'error');
+    } finally {
+      setApplyId(null); // Cerrar modal
     }
   };
 
@@ -150,11 +154,11 @@ const Opportunities = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8 min-h-screen relative">
-      {/* --- NOTIFICACIÓN FLOTANTE (VERDE vs ROJO) --- */}
+      {/* --- NOTIFICACIÓN FLOTANTE (VERDE/ROJO) --- */}
       {notification.show && (
         <div
           className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white 
-          ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} // <--- AQUÍ CAMBIA EL COLOR
+          ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
         >
           {notification.type === 'success' ? (
             <CheckCircle size={24} />
@@ -171,7 +175,7 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* --- MODAL DE ELIMINAR (AMARILLO) --- */}
+      {/* --- MODAL 1: ELIMINAR (AMARILLO) --- */}
       {deleteId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -183,9 +187,7 @@ const Opportunities = () => {
                 ¿Eliminar Vacante?
               </h3>
               <p className="text-amber-800 text-sm mt-2">
-                Estás a punto de eliminar una oferta laboral. <br />
-                <strong>Advertencia:</strong> Esto borrará también las
-                postulaciones asociadas.
+                Se borrarán también las postulaciones asociadas.
               </p>
             </div>
             <div className="p-4 bg-white flex gap-3 justify-center">
@@ -200,6 +202,39 @@ const Opportunities = () => {
                 className="px-5 py-2.5 rounded-xl font-bold bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200 transition flex items-center gap-2"
               >
                 <Trash2 size={18} /> Sí, Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 2: CONFIRMAR POSTULACIÓN (AZUL - NUEVO) --- */}
+      {applyId && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-indigo-50 p-6 flex flex-col items-center text-center border-b border-indigo-100">
+              <div className="bg-indigo-100 p-3 rounded-full text-indigo-600 mb-4 shadow-sm">
+                <HelpCircle size={32} />
+              </div>
+              <h3 className="text-xl font-black text-indigo-900">
+                Confirmar Postulación
+              </h3>
+              <p className="text-indigo-800 text-sm mt-2">
+                ¿Estás seguro de que deseas enviar tu perfil a esta empresa?
+              </p>
+            </div>
+            <div className="p-4 bg-white flex gap-3 justify-center">
+              <button
+                onClick={() => setApplyId(null)}
+                className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmPostulation}
+                className="px-5 py-2.5 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition flex items-center gap-2"
+              >
+                <CheckCircle size={18} /> Sí, Postularme
               </button>
             </div>
           </div>
@@ -238,7 +273,7 @@ const Opportunities = () => {
         </div>
       ) : (
         <>
-          {/* VISTA DE ADMINISTRADOR (TABLA) */}
+          {/* VISTA ADMIN */}
           {isAdmin ? (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
               <table className="w-full text-left border-collapse">
@@ -299,7 +334,7 @@ const Opportunities = () => {
                         </td>
                         <td className="p-5 text-right">
                           <button
-                            onClick={() => handleDelete(opp.id)}
+                            onClick={() => setDeleteId(opp.id)}
                             className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Eliminar Oferta"
                           >
@@ -318,7 +353,7 @@ const Opportunities = () => {
               )}
             </div>
           ) : (
-            /* VISTA DE ESTUDIANTE (TARJETAS) */
+            /* VISTA ESTUDIANTE */
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredOpps.map((opp) => {
                 const applied = myApplications.includes(opp.title);
@@ -330,7 +365,6 @@ const Opportunities = () => {
                     key={opp.id}
                     className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-xl transition-all flex flex-col h-full group relative overflow-hidden hover:-translate-y-1 duration-300"
                   >
-                    {/* Capa de bloqueo visual si está expirado o lleno */}
                     {(expired || isFull) && !applied && (
                       <div className="absolute inset-0 bg-slate-50/60 z-10 pointer-events-none" />
                     )}
@@ -365,7 +399,6 @@ const Opportunities = () => {
                       {opp.company}
                     </p>
 
-                    {/* BARRA DE PROGRESO DE VACANTES */}
                     <div className="mb-4 relative z-20 bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
                         <span>Ocupación:</span>
@@ -398,8 +431,9 @@ const Opportunities = () => {
                           {opp.deadline || 'Sin fecha'}
                         </span>
                       </div>
+                      {/* BOTÓN ABRE EL NUEVO MODAL AZUL */}
                       <button
-                        onClick={() => handleApply(opp.id)}
+                        onClick={() => handleApplyClick(opp.id)}
                         disabled={applied || expired || isFull}
                         className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${applied ? 'bg-emerald-50 text-emerald-600 cursor-default' : expired || isFull ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-blue-600 shadow-lg shadow-slate-200'}`}
                       >
