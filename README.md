@@ -1,16 +1,39 @@
-# React + Vite
+# 🎓 Plataforma de Gestión de Pasantías - UCE
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema web para la gestión automatizada de prácticas pre-profesionales y pasantías de la Universidad Central del Ecuador. Conecta a estudiantes, empresas y tutores en un solo entorno.
 
-Currently, two official plugins are available:
+## 🚀 Características Principales
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* **Autenticación Segura:** Login y registro para Estudiantes y Administradores.
+* **Gestión de Ofertas:** Las empresas pueden publicar vacantes y los estudiantes postular.
+* **Generación de Documentos:**
+    * 📄 Generación automática de Memorandos en PDF.
+    * 📊 Exportación de reportes de aprobados en Excel.
+* **Notificaciones:** Alertas por correo electrónico (Gmail) para confirmación de citas y registros.
+* **Dashboard Interactivo:** Gráficos y estadísticas en tiempo real.
 
-## React Compiler
+## 🛠️ Tecnologías Usadas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **Frontend:** React.js, Tailwind CSS, Lucide Icons.
+* **Backend:** Python (Flask), SQLAlchemy.
+* **Base de Datos:** SQLite (Entorno local).
+* **Contenedores:** Docker & Docker Compose.
 
-## Expanding the ESLint configuration
+## 📦 Instalación y Despliegue
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1.  **Clonar el repositorio:**
+    ```bash
+    git clone [https://github.com/tu-usuario/uce-internship-platform.git](https://github.com/tu-usuario/uce-internship-platform.git)
+    ```
+
+2.  **Ejecutar con Docker:**
+    ```bash
+    docker-compose up --build
+    ```
+
+3.  **Acceder a la web:**
+    * Frontend: `http://localhost:5173`
+    * Backend API: `http://localhost:5001`
+
+---
+Desarrollado por Gissela M. - UCE 2026
