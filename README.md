@@ -1,39 +1,39 @@
-# 🎓 Plataforma de Gestión de Pasantías - UCE
+# 🎓 Internship Management Platform - UCE
 
-Sistema web para la gestión automatizada de prácticas pre-profesionales y pasantías de la Universidad Central del Ecuador. Conecta a estudiantes, empresas y tutores en un solo entorno.
+A comprehensive web-based system designed to automate the management of pre-professional internships and practicums at the Central University of Ecuador (UCE). This platform connects students, companies, and academic tutors in a single, streamlined environment.
 
-## 🚀 Características Principales
+## 🚀 Key Features
 
-* **Autenticación Segura:** Login y registro para Estudiantes y Administradores.
-* **Gestión de Ofertas:** Las empresas pueden publicar vacantes y los estudiantes postular.
-* **Generación de Documentos:**
-    * 📄 Generación automática de Memorandos en PDF.
-    * 📊 Exportación de reportes de aprobados en Excel.
-* **Notificaciones:** Alertas por correo electrónico (Gmail) para confirmación de citas y registros.
-* **Dashboard Interactivo:** Gráficos y estadísticas en tiempo real.
+* **Role-Based Authentication:** Secure login and registration for Students, Tutors, and Administrators.
+* **Opportunity Management:** Companies can post internship vacancies, and students can apply directly through the portal.
+* **Automated Document Generation:**
+    * 📄 **Memorandums:** Automatic generation of PDF assignment memos for tutors.
+    * 📊 **Reporting:** Exporting approved applicant data into Excel spreadsheets for administrative control.
+* **Real-time Notifications:** Automated email alerts (via Gmail SMTP) for interview scheduling and account registration.
+* **Interactive Dashboard:** Real-time statistics and data visualization regarding internship status and quotas.
 
-## 🛠️ Tecnologías Usadas
+## 🛠️ Tech Stack
 
 * **Frontend:** React.js, Tailwind CSS, Lucide Icons.
 * **Backend:** Python (Flask), SQLAlchemy.
-* **Base de Datos:** SQLite (Entorno local).
-* **Contenedores:** Docker & Docker Compose.
+* **Database:** SQLite (Local/Development environment).
+* **Containerization:** Docker & Docker Compose.
 
-## 📦 Instalación y Despliegue
+## 📦 Installation and Setup
 
-1.  **Clonar el repositorio:**
+1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/tu-usuario/uce-internship-platform.git](https://github.com/tu-usuario/uce-internship-platform.git)
+    git clone [https://github.com/gisselamuzo49-commits/uce-internship-platform.git](https://github.com/gisselamuzo49-commits/uce-internship-platform.git)
     ```
 
-2.  **Ejecutar con Docker:**
+2.  **Run with Docker:**
     ```bash
     docker-compose up --build
     ```
 
-3.  **Acceder a la web:**
-    * Frontend: `http://localhost:5173`
-    * Backend API: `http://localhost:5001`
+3.  **Access the Platform:**
+    * **Frontend:** `http://localhost:5173`
+    * **Backend API:** `http://localhost:5001` (or 5000 depending on configuration)
 
 ---
-Desarrollado por Gissela M. - UCE 2026
+Developed by Gissela M. - UCE 2026
