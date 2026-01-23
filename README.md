@@ -14,10 +14,11 @@ A comprehensive web-based system designed to automate the management of pre-prof
 
 ## 🛠️ Tech Stack
 
-* **Frontend:** React.js, Tailwind CSS, Lucide Icons.
-* **Backend:** Python (Flask), SQLAlchemy.
-* **Database:** SQLite (Local/Development environment).
-* **Containerization:** Docker & Docker Compose.
+* **Frontend:** React.js (Vite), Tailwind CSS, Lucide Icons.
+* **Backend:** Python (Flask), Flask-SQLAlchemy, JWT Authentication.
+* **Database:** PostgreSQL 15 (Managed via Docker).
+* **Containerization:** Docker & Docker Compose (Multi-container setup).
+* **Document Services:** ReportLab (PDF) & Pandas (Excel).
 
 ## 📦 Installation and Setup
 
