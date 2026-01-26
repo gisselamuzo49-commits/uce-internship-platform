@@ -23,7 +23,6 @@ const MyApplications = () => {
     const fetchMyApps = async () => {
       if (!user) return;
 
-      // 1. OBTENEMOS EL TOKEN GUARDADO (IMPORTANTE)
       const token = localStorage.getItem('token');
 
       if (!token) {
@@ -35,35 +34,29 @@ const MyApplications = () => {
       try {
         setLoading(true);
 
-        // 2. AGREGAMOS EL HEADER DE AUTORIZACIÓN
-        // Nota: Asegúrate de que el puerto sea 5000 (el que te funcionó)
-        const res = await fetch('http://localhost:5001/api/applications', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`, // <--- AQUÍ ESTÁ LA CLAVE
-          },
-        });
+        // 👇 CAMBIO IMPORTANTE: Usamos la nueva ruta específica
+        const res = await fetch(
+          'http://localhost:5001/api/student/my-applications',
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (!res.ok) {
-          // Si el token expiró o hay error
           if (res.status === 401)
             throw new Error('Sesión expirada. Vuelve a iniciar sesión.');
           throw new Error('Error al obtener datos del servidor');
         }
 
         const data = await res.json();
+        console.log('Mis Postulaciones:', data);
 
-        console.log('Datos del servidor:', data);
-
-        // 3. FILTRADO (Igual que antes)
-        const myApps = data.filter(
-          (app) =>
-            app.student_email === user.email ||
-            String(app.student_id) === String(user.id)
-        );
-
-        setApplications(myApps);
+        // 👇 YA NO FILTRAMOS MANUALMENTE, USAMOS EL DATO DIRECTO
+        setApplications(data);
       } catch (err) {
         console.error('Error:', err);
         setError(err.message);

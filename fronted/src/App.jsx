@@ -9,7 +9,7 @@ import MainLayout from './layouts/MainLayout';
 // --- PAGINAS ---
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
+import Dashboard from './pages/panel_control';
 import Opportunities from './pages/Opportunities';
 import NewOpportunity from './pages/NewOpportunity';
 import MyApplications from './pages/MyApplications';

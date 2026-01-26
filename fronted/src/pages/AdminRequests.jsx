@@ -263,6 +263,8 @@ const AdminRequests = () => {
                     </h2>
                     <p className="text-slate-500">{selectedStudent.email}</p>
                   </div>
+
+                  {/* SECCIÓN 1: CERTIFICACIONES */}
                   <div className="border-t border-slate-100 pt-4">
                     <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
                       <Award className="text-orange-500" size={18} /> Cursos y
@@ -292,6 +294,46 @@ const AdminRequests = () => {
                     ) : (
                       <p className="text-slate-400 italic text-sm text-center">
                         Sin certificaciones.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* SECCIÓN 2: ESTADO DE TUTORÍA (¡NUEVO Y PROTEGIDO!) */}
+                  <div className="border-t border-slate-100 pt-4">
+                    <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                      <BookOpen className="text-blue-500" size={18} /> Estado de
+                      Tutoría
+                    </h4>
+                    {/* 👇 AQUÍ ESTÁ EL ARREGLO: Verificamos si existe el array y si tiene datos */}
+                    {selectedStudent.tutor_requests &&
+                    selectedStudent.tutor_requests.length > 0 ? (
+                      <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-blue-900">
+                            {selectedStudent.tutor_requests[0].title ||
+                              'Solicitud de Pasantía'}
+                          </p>
+                          {selectedStudent.tutor_requests[0].tutor_name && (
+                            <p className="text-xs text-blue-600 mt-1">
+                              Tutor:{' '}
+                              {selectedStudent.tutor_requests[0].tutor_name}
+                            </p>
+                          )}
+                        </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                            selectedStudent.tutor_requests[0].status ===
+                            'Aprobado'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-yellow-100 text-yellow-700'
+                          }`}
+                        >
+                          {selectedStudent.tutor_requests[0].status}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 italic text-sm text-center">
+                        El estudiante no ha solicitado tutor todavía.
                       </p>
                     )}
                   </div>

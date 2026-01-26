@@ -9,6 +9,7 @@ export default defineConfig({
     port: 5173,
     watch: {
       usePolling: true, // <--- ¡ESTA ES LA CLAVE! Obliga a ver cambios en Windows
+    interval: 100,
     }
   }
 })
