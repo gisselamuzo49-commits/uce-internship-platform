@@ -1,35 +1,47 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form'; // <--- 1. IMPORTAMOS RHF
 import { Mail, Lock, EyeOff, Loader } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
+
+  // 2. CONFIGURAMOS EL HOOK
+  // Eliminamos el useState de formData. RHF se encarga ahora.
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();
+
+  // Mantenemos estos estados para la lógica de API y UI
+  const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // 3. NUEVA FUNCIÓN DE SUBMIT
+  // Recibe 'data' automáticamente con { email: '...', password: '...' }
+  const onSubmit = async (data) => {
     setLoading(true);
-    setError('');
-    const res = await login(formData.email, formData.password);
+    setApiError('');
+
+    const res = await login(data.email, data.password);
+
     if (res.success) navigate('/dashboard');
     else {
-      setError(res.error || 'Credenciales incorrectas');
+      setApiError(res.error || 'Credenciales incorrectas');
       setLoading(false);
     }
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
-    // Esta es la parte funcional que no cambia
     const res = await googleLogin(credentialResponse.credential);
     if (res.success) navigate('/dashboard');
     else {
-      setError(res.error);
+      setApiError(res.error);
       setLoading(false);
     }
   };
@@ -61,29 +73,42 @@ const Login = () => {
         </p>
       </div>
 
-      {/* 4. TARJETA DE LOGIN (COMO LA IMAGEN) */}
+      {/* 4. TARJETA DE LOGIN */}
       <div className="relative z-20 w-full max-w-[420px] bg-[#1e2329] p-10 rounded-[2rem] shadow-2xl border border-white/5 animate-fade-in">
         <h2 className="text-2xl text-white font-semibold text-center mb-8">
           Sign in
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* MOSTRAR ERROR DE API SI EXISTE */}
+        {apiError && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-xl text-red-200 text-xs text-center font-bold">
+            {apiError}
+          </div>
+        )}
+
+        {/* 5. FORMULARIO CONECTADO A RHF */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* --- EMAIL --- */}
           <div className="space-y-1">
             <label className="text-gray-400 text-xs ml-1 font-bold uppercase tracking-wider">
               Email
             </label>
             <input
               type="email"
-              required
               placeholder="example@uce.edu.ec"
-              className="w-full bg-[#d9d9d9] text-gray-900 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500"
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
+              // CONEXIÓN AL HOOK:
+              {...register('email', { required: true })}
+              className={`w-full bg-[#d9d9d9] text-gray-900 rounded-xl px-4 py-3 outline-none focus:ring-2 font-medium placeholder-gray-500
+                ${errors.email ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500'}
+              `}
             />
+            {/* Feedback visual discreto */}
+            {errors.email && (
+              <span className="text-red-400 text-[10px] ml-1">Requerido</span>
+            )}
           </div>
 
+          {/* --- PASSWORD --- */}
           <div className="space-y-1">
             <label className="text-gray-400 text-xs ml-1 font-bold uppercase tracking-wider">
               Password
@@ -91,24 +116,34 @@ const Login = () => {
             <div className="relative">
               <input
                 type="password"
-                required
                 placeholder="Enter at least 8+ characters"
-                className="w-full bg-[#d9d9d9] text-gray-900 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium placeholder-gray-500"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
+                // CONEXIÓN AL HOOK:
+                {...register('password', { required: true, minLength: 8 })}
+                className={`w-full bg-[#d9d9d9] text-gray-900 rounded-xl px-4 py-3 outline-none focus:ring-2 font-medium placeholder-gray-500
+                  ${errors.password ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500'}
+                `}
               />
               <EyeOff
                 className="absolute right-3 top-3.5 text-gray-500"
                 size={18}
               />
             </div>
+            {errors.password && (
+              <span className="text-red-400 text-[10px] ml-1">
+                Mínimo 8 caracteres
+              </span>
+            )}
           </div>
 
           <div className="flex items-center justify-between text-[11px] font-bold text-gray-400">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" className="accent-indigo-500" /> Recordarme
+              {/* Checkbox también se puede registrar si quisieras guardar la preferencia */}
+              <input
+                type="checkbox"
+                {...register('remember')}
+                className="accent-indigo-500"
+              />{' '}
+              Recordarme
             </label>
             <Link to="#" className="hover:text-white transition">
               Forgot password?
@@ -118,10 +153,10 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-3.5 rounded-xl transition-all shadow-lg"
+            className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex justify-center items-center"
           >
             {loading ? (
-              <Loader className="animate-spin mx-auto" size={20} />
+              <Loader className="animate-spin" size={20} />
             ) : (
               'Sign in'
             )}
@@ -129,7 +164,7 @@ const Login = () => {
         </form>
       </div>
 
-      {/* 5. SECCIÓN GOOGLE PERSONALIZADA (PILL STYLE) */}
+      {/* 5. SECCIÓN GOOGLE (No cambia, solo se queda visualmente igual) */}
       <div className="relative z-20 w-full max-w-[420px] mt-8 text-center">
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 border-t border-gray-700"></div>
@@ -139,11 +174,11 @@ const Login = () => {
           <div className="flex-1 border-t border-gray-700"></div>
         </div>
 
-        {/* CONTENEDOR DEL BOTÓN DE LA IMAGEN */}
         <div className="relative inline-block overflow-hidden rounded-full">
-          {/* BOTÓN VISUAL (ESTILO IMAGEN) */}
+          {/* DISEÑO DEL BOTÓN */}
           <div className="flex items-center bg-[#4d4d4d] py-1 pl-1 pr-10 rounded-full shadow-lg pointer-events-none">
             <div className="bg-white p-2 rounded-full flex items-center justify-center shadow-md">
+              {/* SVG DE GOOGLE (Resumido para no ocupar espacio visual aquí, es el mismo tuyo) */}
               <svg width="24" height="24" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -168,11 +203,10 @@ const Login = () => {
             </span>
           </div>
 
-          {/* BOTÓN REAL (INVISIBLE PERO FUNCIONAL ENCIMA) */}
           <div className="absolute inset-0 opacity-0 cursor-pointer">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
-              onError={() => setError('Google Login Failed')}
+              onError={() => setApiError('Google Login Failed')}
               useOneTap
               width="300"
             />

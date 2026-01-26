@@ -1,19 +1,21 @@
 flask==3.0.0
 flask-cors==4.0.0
-flask-login==0.6.3
 flask-sqlalchemy==3.1.1
 flask-jwt-extended==4.6.0
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
-pymongo==4.6.0
 pandas==2.1.3
 gunicorn==21.2.0
 werkzeug==3.0.1
 requests==2.31.0
 
-# --- LIBRERÍAS NUEVAS (CRÍTICAS) ---
+# --- REPORTES Y ARCHIVOS ---
 reportlab==4.0.8
+
+# --- GOOGLE LOGIN ---
 google-auth==2.23.4
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
+
+# --- CORREOS ---
 Flask-Mail==0.9.1

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useForm } from 'react-hook-form'; // <--- 1. IMPORTAMOS EL HOOK
 import {
   Briefcase,
   MapPin,
@@ -10,53 +11,51 @@ import {
   Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-// 1. IMPORTAMOS TU COMPONENTE DE NOTIFICACIONES
 import Notification from '../components/Notification';
 
 const NewOpportunity = () => {
   const { authFetch } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-
-  // 2. ESTADO PARA CONTROLAR LA NOTIFICACIÓN
   const [notification, setNotification] = useState(null);
 
-  const [formData, setFormData] = useState({
-    title: '',
-    company: '',
-    location: '',
-    deadline: '',
-    vacancies: 1,
-    description: '',
+  // 2. INICIALIZAMOS REACT HOOK FORM
+  // 'register': Para conectar los inputs
+  // 'handleSubmit': Para manejar el envío
+  // 'formState': Para ver errores
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      vacancies: 1, // Valor inicial para vacantes
+    },
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // 3. FUNCIÓN DE ENVÍO (Ya recibe los datos limpios 'data')
+  const onSubmit = async (data) => {
     setLoading(true);
-    setNotification(null); // Limpiamos notificaciones previas
+    setNotification(null);
 
     try {
       const res = await authFetch('http://localhost:5001/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(data), // Enviamos la data directa de la librería
       });
 
       if (res.ok) {
-        // 3. ÉXITO: MENSAJE VERDE (type: 'success')
         setNotification({
           message: '✅ Oportunidad publicada correctamente',
           type: 'success',
         });
-
-        // Esperamos 2 segundos para que el usuario lea el mensaje antes de cambiar de página
         setTimeout(() => {
           navigate('/oportunidades');
         }, 2000);
       } else {
-        // 4. ERROR: MENSAJE ROJO (type: 'error')
         setNotification({
-          message: '❌ Error al publicar la oportunidad. Intenta de nuevo.',
+          message: '❌ Error al publicar. Intenta de nuevo.',
           type: 'error',
         });
       }
@@ -73,7 +72,6 @@ const NewOpportunity = () => {
 
   return (
     <div className="max-w-3xl mx-auto p-8 relative">
-      {/* 5. AQUÍ RENDERIZAMOS LA NOTIFICACIÓN SI EXISTE */}
       {notification && (
         <Notification
           message={notification.message}
@@ -93,8 +91,10 @@ const NewOpportunity = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+        {/* 4. CONECTAMOS EL FORMULARIO */}
+        <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
+            {/* --- TITULO --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Título
@@ -106,14 +106,17 @@ const NewOpportunity = () => {
                 />
                 <input
                   type="text"
-                  required
-                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
+                  // 5. REGISTRO DEL INPUT (Reemplaza value y onChange)
+                  {...register('title', { required: true })}
+                  className={`w-full pl-10 p-3 bg-slate-50 border rounded-xl ${errors.title ? 'border-red-500' : 'border-slate-200'}`}
                 />
               </div>
+              {errors.title && (
+                <span className="text-red-500 text-xs mt-1">Requerido</span>
+              )}
             </div>
+
+            {/* --- EMPRESA --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Empresa
@@ -125,16 +128,15 @@ const NewOpportunity = () => {
                 />
                 <input
                   type="text"
-                  required
-                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                  onChange={(e) =>
-                    setFormData({ ...formData, company: e.target.value })
-                  }
+                  {...register('company', { required: true })}
+                  className={`w-full pl-10 p-3 bg-slate-50 border rounded-xl ${errors.company ? 'border-red-500' : 'border-slate-200'}`}
                 />
               </div>
             </div>
           </div>
+
           <div className="grid md:grid-cols-3 gap-6">
+            {/* --- UBICACIÓN --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Ubicación
@@ -146,14 +148,13 @@ const NewOpportunity = () => {
                 />
                 <input
                   type="text"
-                  required
+                  {...register('location', { required: true })}
                   className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                  onChange={(e) =>
-                    setFormData({ ...formData, location: e.target.value })
-                  }
                 />
               </div>
             </div>
+
+            {/* --- FECHA --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Fecha Límite
@@ -165,14 +166,13 @@ const NewOpportunity = () => {
                 />
                 <input
                   type="date"
-                  required
+                  {...register('deadline', { required: true })}
                   className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600"
-                  onChange={(e) =>
-                    setFormData({ ...formData, deadline: e.target.value })
-                  }
                 />
               </div>
             </div>
+
+            {/* --- VACANTES --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 N° Vacantes
@@ -185,16 +185,14 @@ const NewOpportunity = () => {
                 <input
                   type="number"
                   min="1"
-                  required
-                  value={formData.vacancies}
+                  {...register('vacancies', { required: true, min: 1 })}
                   className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                  onChange={(e) =>
-                    setFormData({ ...formData, vacancies: e.target.value })
-                  }
                 />
               </div>
             </div>
           </div>
+
+          {/* --- DESCRIPCIÓN --- */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
               Descripción
@@ -206,14 +204,12 @@ const NewOpportunity = () => {
               />
               <textarea
                 rows="5"
-                required
+                {...register('description', { required: true })}
                 className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
               ></textarea>
             </div>
           </div>
+
           <div className="flex justify-end pt-4">
             <button
               type="submit"
