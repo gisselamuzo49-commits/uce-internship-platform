@@ -1,24 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form'; // <--- 1. IMPORTAMOS RHF
+import { useForm } from 'react-hook-form';
 import {
   User,
   Mail,
   Award,
   BookOpen,
-  Upload,
   Edit,
   X,
-  Lock,
   Plus,
   Trash2,
   GraduationCap,
-  Shield,
-  Info,
   Briefcase,
   CheckCircle,
   AlertTriangle,
+  UserCheck, // Nuevo icono para el tutor
 } from 'lucide-react';
 
 const UserProfile = () => {
@@ -33,30 +30,22 @@ const UserProfile = () => {
   const [addingCert, setAddingCert] = useState(false);
   const [addingExp, setAddingExp] = useState(false);
 
-  // --- 2. CONFIGURACIÓN DE FORMULARIOS SEPARADOS ---
-
-  // Form Perfil (Nombre/Password)
+  // --- CONFIGURACIÓN DE FORMULARIOS ---
   const {
     register: regProfile,
     handleSubmit: submitProfile,
     reset: resetProfile,
   } = useForm();
-
-  // Form Experiencia
   const {
     register: regExp,
     handleSubmit: submitExp,
     reset: resetExp,
   } = useForm();
-
-  // Form Certificaciones
   const {
     register: regCert,
     handleSubmit: submitCert,
     reset: resetCert,
   } = useForm();
-
-  // Form Formalización (Tutor)
   const {
     register: regTutor,
     handleSubmit: submitTutor,
@@ -69,6 +58,7 @@ const UserProfile = () => {
     message: '',
     type: '',
   });
+
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
     setTimeout(
@@ -79,12 +69,12 @@ const UserProfile = () => {
 
   useEffect(() => {
     if (user && isStudent) fetchRequests();
-    // Pre-cargar datos del perfil cuando el usuario existe
     if (user) resetProfile({ name: user.name });
   }, [user, isStudent, resetProfile]);
 
   const fetchRequests = async () => {
     try {
+      // Esta ruta debe devolver assigned_tutor y tutor_email gracias a tu cambio en models.py
       const res = await authFetch('http://localhost:5001/api/tutor-requests');
       if (res.ok) setRequests(await res.json());
     } catch (e) {
@@ -101,13 +91,19 @@ const UserProfile = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
+      const result = await res.json();
       if (res.ok) {
         await refreshUser();
         showNotification('✅ Experiencia agregada', 'success');
-        resetExp(); // Limpia el formulario
+        resetExp();
+      } else {
+        showNotification(
+          `❌ Error: ${result.error || 'Fallo al guardar'}`,
+          'error'
+        );
       }
     } catch (e) {
-      console.error(e);
+      showNotification('❌ Error de conexión', 'error');
     } finally {
       setAddingExp(false);
     }
@@ -124,11 +120,13 @@ const UserProfile = () => {
       });
       if (res.ok) {
         await refreshUser();
-        showNotification('✅ Curso agregado correctamente', 'success');
+        showNotification('✅ Curso agregado', 'success');
         resetCert();
+      } else {
+        showNotification('❌ Error al agregar curso', 'error');
       }
     } catch (e) {
-      console.error(e);
+      showNotification('❌ Error de conexión', 'error');
     } finally {
       setAddingCert(false);
     }
@@ -160,7 +158,7 @@ const UserProfile = () => {
 
   // --- LÓGICA SUBIDA (TUTOR) ---
   const onUploadTutor = async (data) => {
-    const file = data.file[0]; // RHF captura los archivos en un array
+    const file = data.file[0];
     if (!file) return showNotification('Falta el archivo', 'error');
 
     setUploading(true);
@@ -169,7 +167,7 @@ const UserProfile = () => {
     formData.append('title', data.docTitle);
 
     try {
-      let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
+      let token = localStorage.getItem('token');
       const res = await fetch('http://localhost:5001/api/tutor-requests', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -189,7 +187,6 @@ const UserProfile = () => {
     }
   };
 
-  // Funciones de borrado (se mantienen igual porque no son formularios)
   const handleDeleteExp = async (id) => {
     if (!window.confirm('¿Eliminar esta experiencia?')) return;
     try {
@@ -246,24 +243,6 @@ const UserProfile = () => {
         </div>
       )}
 
-      {/* ALERTAS ESTUDIANTE */}
-      {isStudent && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl flex items-start gap-4 shadow-sm">
-          <div className="bg-amber-100 p-2 rounded-full text-amber-600">
-            <Info size={24} />
-          </div>
-          <div>
-            <h3 className="font-bold text-amber-800 text-lg">
-              ATENCIÓN: Información Obligatoria
-            </h3>
-            <p className="text-amber-700 text-sm mt-1">
-              Para que tu perfil sea considerado, es obligatorio completar la
-              Experiencia Laboral y Cursos.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* HEADER */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
         <div
@@ -296,47 +275,6 @@ const UserProfile = () => {
         </div>
       </div>
 
-      {/* SEGURIDAD (SOLO ADMIN) */}
-      {!isStudent && (
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-            <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Shield className="text-emerald-500" /> Seguridad
-            </h2>
-            <form
-              onSubmit={submitProfile(onUpdateProfile)}
-              className="space-y-4"
-            >
-              <input
-                {...regProfile('name', { required: true })}
-                type="text"
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                placeholder="Nombre"
-              />
-              <div className="relative">
-                <Lock
-                  className="absolute left-3 top-3.5 text-slate-400"
-                  size={16}
-                />
-                <input
-                  {...regProfile('password')}
-                  type="password"
-                  placeholder="Nueva Contraseña (Opcional)"
-                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={updating}
-                className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition"
-              >
-                {updating ? 'Actualizando...' : 'Actualizar'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* SECCIONES ESTUDIANTE */}
       {isStudent && (
         <>
@@ -363,19 +301,27 @@ const UserProfile = () => {
                     placeholder="Nombre de la Empresa"
                     className="w-full p-3 bg-white border border-purple-200 rounded-xl text-sm"
                   />
-                  <div className="flex gap-2">
-                    <input
-                      {...regExp('start_date', { required: true })}
-                      type="text"
-                      placeholder="Fecha Inicio"
-                      className="w-1/2 p-3 bg-white border border-purple-200 rounded-xl text-sm"
-                    />
-                    <input
-                      {...regExp('end_date', { required: true })}
-                      type="text"
-                      placeholder="Fecha Fin"
-                      className="w-1/2 p-3 bg-white border border-purple-200 rounded-xl text-sm"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-700 ml-1">
+                        INICIO
+                      </label>
+                      <input
+                        {...regExp('start_date', { required: true })}
+                        type="date"
+                        className="w-full p-3 bg-white border border-purple-200 rounded-xl text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-700 ml-1">
+                        FIN
+                      </label>
+                      <input
+                        {...regExp('end_date')}
+                        type="date"
+                        className="w-full p-3 bg-white border border-purple-200 rounded-xl text-sm"
+                      />
+                    </div>
                   </div>
                   <textarea
                     {...regExp('description')}
@@ -403,6 +349,11 @@ const UserProfile = () => {
                   Mis Experiencias
                 </h3>
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                  {user.experiences?.length === 0 && (
+                    <p className="text-sm text-slate-400 italic">
+                      No has agregado experiencia.
+                    </p>
+                  )}
                   {user.experiences?.map((exp) => (
                     <div
                       key={exp.id}
@@ -416,9 +367,10 @@ const UserProfile = () => {
                       </button>
                       <h4 className="font-bold text-slate-800">{exp.role}</h4>
                       <p className="text-sm text-slate-500 font-bold">
-                        {exp.company} • {exp.start_date} - {exp.end_date}
+                        {exp.company} • {exp.start_date} -{' '}
+                        {exp.end_date || 'Presente'}
                       </p>
-                      <p className="text-xs text-slate-600">
+                      <p className="text-xs text-slate-600 mt-1">
                         {exp.description}
                       </p>
                     </div>
@@ -452,6 +404,7 @@ const UserProfile = () => {
                     <input
                       {...regCert('year', { required: true })}
                       type="number"
+                      placeholder="Año"
                       className="w-1/3 p-3 bg-white border border-orange-200 rounded-xl text-sm"
                     />
                   </div>
@@ -471,6 +424,11 @@ const UserProfile = () => {
                 </form>
               </div>
               <div className="space-y-3">
+                {user.certifications?.length === 0 && (
+                  <p className="text-sm text-slate-400 italic">
+                    No has agregado cursos.
+                  </p>
+                )}
                 {user.certifications?.map((cert) => (
                   <div
                     key={cert.id}
@@ -501,7 +459,7 @@ const UserProfile = () => {
             </div>
           </div>
 
-          {/* FORMALIZACIÓN (TUTOR) */}
+          {/* FORMALIZACIÓN (TUTOR) - ¡ACTUALIZADO AQUÍ! */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
               <BookOpen className="text-blue-600" /> Formalización
@@ -537,62 +495,88 @@ const UserProfile = () => {
                 {requests.map((req) => (
                   <div
                     key={req.id}
-                    className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm flex justify-between items-center"
+                    className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm"
                   >
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm">
-                        {req.title}
-                      </p>
-                      <p className="text-xs text-slate-400">{req.date}</p>
+                    {/* Encabezado de la solicitud */}
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">
+                          {req.title}
+                        </p>
+                        <p className="text-xs text-slate-400">{req.date}</p>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${req.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-700' : req.status === 'Aprobado' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
+                      >
+                        {req.status}
+                      </span>
                     </div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${req.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}`}
-                    >
-                      {req.status}
-                    </span>
+
+                    {/* 👇 AQUÍ MOSTRAMOS AL TUTOR Y SU CORREO 👇 */}
+                    {req.assigned_tutor && (
+                      <div className="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        <p className="text-xs font-bold text-blue-800 uppercase mb-1 flex items-center gap-1">
+                          <UserCheck size={14} /> Docente Asignado
+                        </p>
+                        <p className="text-sm font-bold text-slate-700">
+                          {req.assigned_tutor}
+                        </p>
+                        {req.tutor_email && (
+                          <p className="text-xs text-blue-600 flex items-center gap-1 mt-1 font-medium">
+                            <Mail size={12} /> {req.tutor_email}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
+                {requests.length === 0 && (
+                  <p className="text-slate-400 text-sm italic text-center py-4">
+                    No has enviado documentos.
+                  </p>
+                )}
               </div>
             </div>
           </div>
-
-          {/* MODAL EDICIÓN PERFIL ESTUDIANTE */}
-          {isEditing && (
-            <div className="fixed inset-0 bg-slate-900/80 z-[9999] flex justify-center items-center p-4">
-              <div className="bg-white w-full max-w-md rounded-2xl p-6">
-                <div className="flex justify-between mb-4">
-                  <h3 className="font-bold">Editar Datos</h3>
-                  <button onClick={() => setIsEditing(false)}>
-                    <X />
-                  </button>
-                </div>
-                <form
-                  onSubmit={submitProfile(onUpdateProfile)}
-                  className="space-y-4"
-                >
-                  <input
-                    {...regProfile('name', { required: true })}
-                    type="text"
-                    className="w-full p-3 border rounded-xl"
-                  />
-                  <input
-                    {...regProfile('password')}
-                    type="password"
-                    placeholder="Nueva Contraseña"
-                    className="w-full p-3 border rounded-xl"
-                  />
-                  <button
-                    type="submit"
-                    disabled={updating}
-                    className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl"
-                  >
-                    {updating ? 'Guardando...' : 'Guardar'}
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
         </>
+      )}
+
+      {/* MODAL EDICIÓN PERFIL */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-slate-900/80 z-[9999] flex justify-center items-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-6">
+            <div className="flex justify-between mb-4">
+              <h3 className="font-bold">Editar Datos</h3>
+              <button onClick={() => setIsEditing(false)}>
+                <X />
+              </button>
+            </div>
+            <form
+              onSubmit={submitProfile(onUpdateProfile)}
+              className="space-y-4"
+            >
+              <input
+                {...regProfile('name', { required: true })}
+                type="text"
+                className="w-full p-3 border rounded-xl"
+                placeholder="Nombre"
+              />
+              <input
+                {...regProfile('password')}
+                type="password"
+                placeholder="Nueva Contraseña"
+                className="w-full p-3 border rounded-xl"
+              />
+              <button
+                type="submit"
+                disabled={updating}
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl"
+              >
+                {updating ? 'Guardando...' : 'Guardar'}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

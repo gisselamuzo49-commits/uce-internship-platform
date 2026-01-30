@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useForm } from 'react-hook-form'; // <--- 1. IMPORTAMOS EL HOOK
+import { useForm } from 'react-hook-form';
 import {
   Briefcase,
   MapPin,
@@ -19,59 +19,43 @@ const NewOpportunity = () => {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // 2. INICIALIZAMOS REACT HOOK FORM
-  // 'register': Para conectar los inputs
-  // 'handleSubmit': Para manejar el envío
-  // 'formState': Para ver errores
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm({
-    defaultValues: {
-      vacancies: 1, // Valor inicial para vacantes
-    },
+    defaultValues: { vacancies: 1, type: 'pasantia' },
   });
 
-  // 3. FUNCIÓN DE ENVÍO (Ya recibe los datos limpios 'data')
   const onSubmit = async (data) => {
     setLoading(true);
-    setNotification(null);
+    const payload = { ...data, vacancies: parseInt(data.vacancies) };
 
     try {
       const res = await authFetch('http://localhost:5001/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data), // Enviamos la data directa de la librería
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setNotification({
-          message: '✅ Oportunidad publicada correctamente',
+          message: '✅ Oferta publicada correctamente',
           type: 'success',
         });
-        setTimeout(() => {
-          navigate('/oportunidades');
-        }, 2000);
+        setTimeout(() => navigate('/dashboard'), 2000);
       } else {
-        setNotification({
-          message: '❌ Error al publicar. Intenta de nuevo.',
-          type: 'error',
-        });
+        setNotification({ message: '❌ Error al publicar.', type: 'error' });
       }
     } catch (error) {
-      console.error(error);
-      setNotification({
-        message: '❌ Error de conexión con el servidor.',
-        type: 'error',
-      });
+      setNotification({ message: '❌ Error de conexión.', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-8 relative">
+    <div className="max-w-3xl mx-auto p-8 relative min-h-screen">
       {notification && (
         <Notification
           message={notification.message}
@@ -82,19 +66,45 @@ const NewOpportunity = () => {
 
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
         <div className="bg-slate-900 p-6 text-white flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <PlusCircle size={24} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black">Publicar Nueva Vacante</h1>
-            <p className="text-slate-400 text-sm">Define cupos y fechas.</p>
-          </div>
+          <PlusCircle size={24} />
+          <h1 className="text-2xl font-black">Publicar Nueva Vacante</h1>
         </div>
 
-        {/* 4. CONECTAMOS EL FORMULARIO */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
+          {/* SELECTOR DE TIPO */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+              Tipo de Oferta
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  value="pasantia"
+                  {...register('type')}
+                  className="peer sr-only"
+                />
+                <div className="p-3 rounded-xl border border-slate-200 peer-checked:bg-indigo-50 peer-checked:border-indigo-500 peer-checked:text-indigo-700 flex items-center gap-2 hover:bg-slate-50">
+                  <Briefcase size={18} />{' '}
+                  <span className="font-bold text-sm">Prácticas</span>
+                </div>
+              </label>
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  value="vinculacion"
+                  {...register('type')}
+                  className="peer sr-only"
+                />
+                <div className="p-3 rounded-xl border border-slate-200 peer-checked:bg-teal-50 peer-checked:border-teal-500 peer-checked:text-teal-700 flex items-center gap-2 hover:bg-slate-50">
+                  <Users size={18} />{' '}
+                  <span className="font-bold text-sm">Vinculación</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-6">
-            {/* --- TITULO --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Título
@@ -106,17 +116,11 @@ const NewOpportunity = () => {
                 />
                 <input
                   type="text"
-                  // 5. REGISTRO DEL INPUT (Reemplaza value y onChange)
                   {...register('title', { required: true })}
-                  className={`w-full pl-10 p-3 bg-slate-50 border rounded-xl ${errors.title ? 'border-red-500' : 'border-slate-200'}`}
+                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl"
                 />
               </div>
-              {errors.title && (
-                <span className="text-red-500 text-xs mt-1">Requerido</span>
-              )}
             </div>
-
-            {/* --- EMPRESA --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Empresa
@@ -129,14 +133,13 @@ const NewOpportunity = () => {
                 <input
                   type="text"
                   {...register('company', { required: true })}
-                  className={`w-full pl-10 p-3 bg-slate-50 border rounded-xl ${errors.company ? 'border-red-500' : 'border-slate-200'}`}
+                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl"
                 />
               </div>
             </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            {/* --- UBICACIÓN --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Ubicación
@@ -149,12 +152,10 @@ const NewOpportunity = () => {
                 <input
                   type="text"
                   {...register('location', { required: true })}
-                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl"
                 />
               </div>
             </div>
-
-            {/* --- FECHA --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Fecha Límite
@@ -167,15 +168,13 @@ const NewOpportunity = () => {
                 <input
                   type="date"
                   {...register('deadline', { required: true })}
-                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600"
+                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl"
                 />
               </div>
             </div>
-
-            {/* --- VACANTES --- */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                N° Vacantes
+                Vacantes
               </label>
               <div className="relative">
                 <Users
@@ -185,14 +184,13 @@ const NewOpportunity = () => {
                 <input
                   type="number"
                   min="1"
-                  {...register('vacancies', { required: true, min: 1 })}
-                  className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  {...register('vacancies', { required: true })}
+                  className="w-full pl-10 p-3 bg-slate-50 border rounded-xl"
                 />
               </div>
             </div>
           </div>
 
-          {/* --- DESCRIPCIÓN --- */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
               Descripción
@@ -205,7 +203,7 @@ const NewOpportunity = () => {
               <textarea
                 rows="5"
                 {...register('description', { required: true })}
-                className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                className="w-full pl-10 p-3 bg-slate-50 border rounded-xl"
               ></textarea>
             </div>
           </div>
@@ -214,9 +212,9 @@ const NewOpportunity = () => {
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              className="bg-indigo-600 text-white font-bold py-3 px-8 rounded-xl hover:bg-indigo-700"
             >
-              {loading ? 'Publicando...' : 'Publicar Oportunidad'}
+              {loading ? 'Publicando...' : 'Publicar'}
             </button>
           </div>
         </form>
@@ -224,5 +222,4 @@ const NewOpportunity = () => {
     </div>
   );
 };
-
 export default NewOpportunity;

@@ -1,64 +1,173 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-// --- LAYOUTS Y COMPONENTES ---
-import MainLayout from './layouts/MainLayout';
-
-// --- PAGINAS ---
+// --- COMPONENTES GLOBALES ---
+import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/panel_control';
-import Opportunities from './pages/Opportunities';
-import NewOpportunity from './pages/NewOpportunity';
-import MyApplications from './pages/MyApplications';
-import UserProfile from './pages/Profile';
 
-// Importamos las DOS páginas de admin
-import AdminRequests from './pages/AdminRequests'; // Panel de Gestión
-import Postulantes from './pages/Postulantes'; // Reportes Excel
+// --- PÁGINAS DE ESTUDIANTE ---
+import UserProfile from './pages/student/Profile';
+import Opportunities from './pages/student/Opportunities';
+import MyApplications from './pages/student/MyApplications';
+import StudentDashboard from './pages/student/StudentDashboard';
 
+// --- PÁGINAS DE ADMIN ---
+import AdminDashboard from './pages/panel_control/AdminDashboard';
+import AdminRequests from './pages/panel_control/AdminRequests'; // La tabla de aprobaciones y CVs
+import AdminOpportunities from './pages/panel_control/AdminOpportunities'; // Editar/Borrar Ofertas
+import Postulantes from './pages/panel_control/Postulantes'; // El reporte Excel (Nuevo)
+
+// 1. REDIRECCIÓN INTELIGENTE
+const DashboardRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-screen">
+        Cargando...
+      </div>
+    );
+  if (!user) return <Navigate to="/login" />;
+
+  if (user.role === 'admin') return <AdminDashboard />;
+  if (user.role === 'student') return <StudentDashboard />;
+
+  return <Navigate to="/login" />;
+};
+
+// 2. PROTECCIÓN DE RUTAS
+const ProtectedRoute = ({ children, role }) => {
+  const { user, loading } = useAuth();
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-screen">
+        Cargando...
+      </div>
+    );
+  if (!user) return <Navigate to="/login" />;
+
+  if (role && user.role !== role) {
+    return <Navigate to="/dashboard" />;
+  }
+  return children;
+};
+
+// 3. LAYOUT (Maneja el Sidebar y el margen)
+const Layout = ({ children }) => {
+  const location = useLocation();
+  const hideSidebar = ['/login', '/register', '/'].includes(location.pathname);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {!hideSidebar && <Navbar />}
+
+      {/* 'ml-64' empuja el contenido a la derecha cuando está el sidebar */}
+      <main
+        className={`relative transition-all duration-300 ${!hideSidebar ? 'ml-64' : 'ml-0'}`}
+      >
+        <div className="w-full">{children}</div>
+      </main>
+    </div>
+  );
+};
+
+// 4. APP PRINCIPAL
 function App() {
   return (
-    <GoogleOAuthProvider clientId="282229570814-h2f8ok7uh91tddg8eltu6cfeeqi5u9j8.apps.googleusercontent.com">
-      <AuthProvider>
-        <BrowserRouter>
+    <AuthProvider>
+      <Router>
+        <Layout>
           <Routes>
             {/* Rutas Públicas */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/" element={<Navigate to="/login" />} />
 
-            {/* Rutas Privadas con el Diseño Principal */}
-            <Route element={<MainLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/oportunidades" element={<Opportunities />} />
-              <Route path="/perfil" element={<UserProfile />} />
+            {/* Dashboard Inteligente */}
+            <Route path="/dashboard" element={<DashboardRedirect />} />
 
-              {/* --- ZONA ADMINISTRADOR --- */}
+            {/* --- RUTAS ESTUDIANTE --- */}
+            <Route
+              path="/practicas"
+              element={
+                <ProtectedRoute role="student">
+                  <Opportunities type="pasantia" />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* 1. GESTIÓN: Panel avanzado (Aprobar/Rechazar/Tutores) */}
-              <Route path="/admin/postulaciones" element={<AdminRequests />} />
+            <Route
+              path="/vinculacion"
+              element={
+                <ProtectedRoute role="student">
+                  <Opportunities type="vinculacion" />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* 2. REPORTES: Tabla simple y descarga de Excel */}
-              <Route path="/admin/reportes" element={<Postulantes />} />
+            <Route
+              path="/mis-postulaciones"
+              element={
+                <ProtectedRoute role="student">
+                  <MyApplications />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* 3. CREAR VACANTE */}
-              <Route
-                path="/admin/nueva-oportunidad"
-                element={<NewOpportunity />}
-              />
+            <Route
+              path="/perfil"
+              element={
+                <ProtectedRoute>
+                  <UserProfile />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* --- ZONA ESTUDIANTE --- */}
-              <Route path="/mis-postulaciones" element={<MyApplications />} />
+            {/* --- RUTAS ADMINISTRADOR --- */}
 
-              {/* Redirección por defecto (Siempre al final) */}
-              <Route path="/" element={<Navigate to="/dashboard" />} />
-            </Route>
+            {/* 1. Solicitudes (Aprobar, Rechazar, Ver CV) */}
+            <Route
+              path="/admin/solicitudes"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminRequests />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 2. Postulantes (Reporte Excel) - ¡NUEVA! */}
+            <Route
+              path="/admin/postulantes"
+              element={
+                <ProtectedRoute role="admin">
+                  <Postulantes />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 3. Ofertas (Gestión) */}
+            <Route
+              path="/admin/ofertas"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminOpportunities />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 404 */}
+            <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </GoogleOAuthProvider>
+        </Layout>
+      </Router>
+    </AuthProvider>
   );
 }
 

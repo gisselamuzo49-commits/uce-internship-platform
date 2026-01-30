@@ -1,26 +1,42 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { googleLogout } from '@react-oauth/google';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context)
+    throw new Error('useAuth debe usarse dentro de un AuthProvider');
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Cargar usuario al iniciar (TU LÓGICA ORIGINAL)
+  // Cargar usuario al iniciar la app
   useEffect(() => {
     const storedUser = localStorage.getItem('siiu_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Error leyendo usuario guardado:', e);
-        localStorage.clear();
-      }
+    const token = localStorage.getItem('token');
+
+    if (storedUser && token) {
+      setUser(JSON.parse(storedUser));
     }
     setLoading(false);
   }, []);
 
-  // 2. Login Normal
+  // --- HELPER PARA PETICIONES AUTENTICADAS ---
+  const authFetch = async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    };
+    return fetch(url, { ...options, headers });
+  };
+
+  // --- FUNCIÓN DE LOGIN ---
   const login = async (email, password) => {
     try {
       const res = await fetch('http://localhost:5001/api/login', {
@@ -32,17 +48,23 @@ export const AuthProvider = ({ children }) => {
       const data = await res.json();
 
       if (res.ok) {
-        saveSession(data);
-        return { success: true };
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('siiu_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true, role: data.user.role };
+      } else {
+        return {
+          success: false,
+          error: data.error || 'Error al iniciar sesión',
+        };
       }
-      return { success: false, error: data.error };
     } catch (error) {
-      console.error(error);
-      return { success: false, error: 'Error de conexión (5001)' };
+      console.error('Error Login:', error);
+      return { success: false, error: 'Error de conexión con el servidor' };
     }
   };
 
-  // 3. Login Google
+  // --- FUNCIÓN DE GOOGLE LOGIN ---
   const googleLogin = async (googleToken) => {
     try {
       const res = await fetch('http://localhost:5001/api/google-login', {
@@ -50,87 +72,59 @@ export const AuthProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: googleToken }),
       });
-
       const data = await res.json();
 
       if (res.ok) {
-        saveSession(data);
-        return { success: true };
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('siiu_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true, role: data.user.role };
       } else {
-        return { success: false, error: data.error || 'Error Google' };
+        return { success: false, error: data.error };
       }
     } catch (error) {
-      console.error('Error Google Auth:', error);
-      return { success: false, error: 'Error de conexión.' };
+      return { success: false, error: 'Error de conexión Google' };
     }
   };
 
-  // Helper para guardar sesión
-  const saveSession = (data) => {
-    setUser(data.user);
-    localStorage.setItem('siiu_user', JSON.stringify(data.user));
-    const token = data.token || data.access_token;
-    localStorage.setItem('token', token);
-  };
-
-  // 4. Logout
+  // --- FUNCIÓN LOGOUT ---
   const logout = () => {
+    googleLogout();
+    localStorage.removeItem('token');
+    localStorage.removeItem('siiu_user');
     setUser(null);
-    localStorage.clear();
-    window.location.href = '/login';
   };
 
-  // 5. Fetch Autenticado
-  const authFetch = async (url, options = {}) => {
-    let token = localStorage.getItem('token');
-    if (token) {
-      token = token.replace(/^"|"$/g, '').trim();
-    }
-
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-    };
-
-    try {
-      let response = await fetch(url, { ...options, headers });
-      if (response.status === 401) {
-        console.warn('Sesión caducada (401). Cerrando sesión...');
-        logout();
-      }
-      if (response.status === 500) {
-        console.error('Error interno del servidor (500).');
-      }
-      return response;
-    } catch (error) {
-      console.error('Error de red:', error);
-      throw error;
-    }
-  };
-
-  const updateLocalUser = (newData) => {
-    setUser(newData);
-    localStorage.setItem('siiu_user', JSON.stringify(newData));
-  };
-
-  // --- NUEVA FUNCIÓN AGREGADA: REFRESCAR USUARIO ---
-  // Esta función pide los datos nuevos al backend y actualiza la pantalla sin recargar
+  // --- REFRESCAR USUARIO (CORREGIDO) ---
   const refreshUser = async () => {
-    if (!user) return;
-    try {
-      // Usamos tu authFetch para asegurar que lleva el token
-      const res = await authFetch(
-        `http://localhost:5001/api/profile/${user.id}`
-      );
-      if (res.ok) {
-        const freshData = await res.json();
-        // Usamos tu función existente para guardar en memoria y localStorage
-        updateLocalUser(freshData);
-        console.log('Datos refrescados correctamente');
+    // Si no hay usuario en el estado, intentamos leerlo del localStorage para obtener el ID
+    let currentUserId = user?.id;
+    if (!currentUserId) {
+      const stored = localStorage.getItem('siiu_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        currentUserId = parsed.id;
       }
-    } catch (error) {
-      console.error('Error al refrescar usuario', error);
+    }
+
+    if (!currentUserId) return; // Si no hay ID, no podemos refrescar
+
+    try {
+      // 👇 AQUÍ ESTABA EL ERROR: Faltaba agregar /${currentUserId}
+      const res = await authFetch(
+        `http://localhost:5001/api/profile/${currentUserId}`
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        // Actualizamos el estado y el localStorage con la info nueva (que incluye experiencias)
+        localStorage.setItem('siiu_user', JSON.stringify(data));
+        setUser(data);
+      } else {
+        console.error('Error refrescando perfil:', res.status);
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -138,18 +132,17 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
+        loading,
         login,
         googleLogin,
         logout,
         authFetch,
-        loading,
-        updateLocalUser,
-        refreshUser, // <--- ¡AQUÍ EXPORTAMOS LA FUNCIÓN MÁGICA!
+        refreshUser,
       }}
     >
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export default AuthContext;

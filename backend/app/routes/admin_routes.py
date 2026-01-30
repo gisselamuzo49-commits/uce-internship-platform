@@ -1,120 +1,234 @@
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from app.extensions import db
-from app.models import User, TutorRequest, Application, Opportunity
-from app.services import generate_student_cv_pdf, generate_memo_pdf
-from flask_jwt_extended import jwt_required
+from app.models import User, Application, Opportunity, TutorRequest, Appointment, Experience, Certification
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func 
 import datetime
 
 admin_bp = Blueprint('admin', __name__)
 
-# --- 1. OBTENER SOLICITUDES DE TUTOR ---
-@admin_bp.route('/api/admin/tutor-requests', methods=['GET'])
-@jwt_required()
-def get_all_requests():
-    return jsonify([r.to_dict() for r in TutorRequest.query.all()]), 200
+# Middleware auxiliar para validar rol de administrador
+def check_admin(user_id):
+    user = User.query.get(user_id)
+    if not user or user.role != 'admin':
+        return False
+    return True
 
-# --- 2. ACTUALIZAR SOLICITUD DE TUTOR (APROBAR/ASIGNAR) ---
-@admin_bp.route('/api/admin/tutor-requests/<int:id>', methods=['PUT'])
+# ==============================================================================
+# 1. DASHBOARD / ESTADÍSTICAS (ACTUALIZADO PARA GRÁFICAS)
+# ==============================================================================
+@admin_bp.route('/api/admin/stats', methods=['GET'])
 @jwt_required()
-def update_tutor_req(id):
-    req = TutorRequest.query.get(id)
-    if not req:
-        return jsonify({'error': 'Solicitud no encontrada'}), 404
-        
-    req.status = request.json.get('status', req.status)
-    req.tutor_name = request.json.get('tutor_name', req.tutor_name)
+def get_admin_stats():
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): 
+        return jsonify({'error': 'No autorizado'}), 403
+
+    # Estadísticas básicas para StatCards
+    students_count = User.query.filter_by(role='student').count()
+    apps_count = Application.query.count()
+    pending_count = Application.query.filter_by(status='Pendiente').count()
+    opps_count = Opportunity.query.count()
+
+    # DATOS PARA GRÁFICA 4: CARGA DE TRABAJO DE TUTORES
+    tutor_query = db.session.query(
+        TutorRequest.assigned_tutor, 
+        func.count(TutorRequest.id)
+    ).filter(
+        TutorRequest.status == 'Aprobado',
+        TutorRequest.assigned_tutor != None
+    ).group_by(TutorRequest.assigned_tutor).all()
+    
+    tutor_workload = [{"name": t[0], "estudiantes": t[1]} for t in tutor_query]
+
+    # DATOS PARA GRÁFICA 5: TENDENCIA DE ACTIVIDAD (Últimos 7 días)
+    activity_trend = []
+    today = datetime.datetime.utcnow().date()
+    for i in range(6, -1, -1):
+        target_date = today - datetime.timedelta(days=i)
+        count = Application.query.filter(func.date(Application.date) == target_date).count()
+        activity_trend.append({
+            "fecha": target_date.strftime('%d/%m'),
+            "postulaciones": count
+        })
+
+    return jsonify({
+        'students': students_count,
+        'applications': apps_count,
+        'pending': pending_count,
+        'opportunities': opps_count,
+        'tutor_workload': tutor_workload,
+        'activity_trend': activity_trend
+    }), 200
+
+# ==============================================================================
+# 2. GESTIÓN DE OPORTUNIDADES (OFERTAS)
+# ==============================================================================
+@admin_bp.route('/api/opportunities', methods=['POST'])
+@jwt_required()
+def create_opportunity():
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    data = request.json
+    try:
+        new_opp = Opportunity(
+            title=data['title'], company=data['company'], description=data['description'],
+            location=data['location'], deadline=data['deadline'], vacancies=data.get('vacancies', 1),
+            type=data.get('type', 'pasantia')
+        )
+        db.session.add(new_opp)
+        db.session.commit()
+        return jsonify({'message': 'Creada', 'opportunity': new_opp.to_dict()}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/api/opportunities/<int:id>', methods=['PUT'])
+@jwt_required()
+def update_opportunity(id):
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    data = request.json
+    opp = Opportunity.query.get(id)
+    if not opp: return jsonify({'error': 'No encontrada'}), 404
+
+    opp.title = data.get('title', opp.title)
+    opp.company = data.get('company', opp.company)
+    opp.description = data.get('description', opp.description)
+    opp.location = data.get('location', opp.location)
+    opp.deadline = data.get('deadline', opp.deadline)
+    opp.vacancies = data.get('vacancies', opp.vacancies)
+    opp.type = data.get('type', opp.type)
+
+    db.session.commit()
+    return jsonify({'message': 'Actualizada'}), 200
+
+@admin_bp.route('/api/opportunities/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_opportunity(id):
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    opp = Opportunity.query.get(id)
+    if opp:
+        db.session.delete(opp)
+        db.session.commit()
+        return jsonify({'message': 'Eliminada'}), 200
+    return jsonify({'error': 'No encontrada'}), 404
+
+# ==============================================================================
+# 3. GESTIÓN DE APLICACIONES (POSTULACIONES)
+# ==============================================================================
+@admin_bp.route('/api/admin/applications', methods=['GET'])
+@jwt_required()
+def get_all_applications():
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    apps = Application.query.order_by(Application.date.desc()).all()
+    results = []
+    for app in apps:
+        data = app.to_dict()
+        data['student_id'] = app.student_id 
+        if app.student_user:
+            data['student_name'] = app.student_user.name
+            data['student_email'] = app.student_user.email
+        if app.opportunity:
+            data['opportunity_title'] = app.opportunity.title
+            data['type'] = app.opportunity.type
+        results.append(data)
+    return jsonify(results), 200
+
+@admin_bp.route('/api/admin/applications/<int:id>/status', methods=['PUT'])
+@jwt_required()
+def update_application_status(id):
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    data = request.json
+    app = Application.query.get(id)
+    if not app: return jsonify({'error': 'No encontrado'}), 404
+    app.status = data.get('status')
     db.session.commit()
     return jsonify({'message': 'Actualizado'}), 200
 
-# --- 3. OBTENER POSTULACIONES DE EMPLEO (AQUÍ ESTÁ EL ARREGLO 🛠️) ---
-@admin_bp.route('/api/admin/applications', methods=['GET'])
+# ==============================================================================
+# 4. GESTIÓN DE TUTORÍAS (FORMALIZACIÓN CON NOMBRE Y CORREO)
+# ==============================================================================
+@admin_bp.route('/api/admin/tutor-requests', methods=['GET'])
 @jwt_required()
-def admin_apps():
-    applications = Application.query.all()
+def get_all_tutor_requests():
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    reqs = TutorRequest.query.order_by(TutorRequest.date.desc()).all()
     results = []
-    
-    for app in applications:
-        # Obtenemos los datos base del modelo
-        app_data = app.to_dict()
-        
-        # 👇 ARREGLO CRÍTICO: 
-        # Aseguramos que el student_id se envíe para que funcione el botón "Ver Perfil"
-        app_data['student_id'] = app.student_id 
-        
-        results.append(app_data)
-
+    for r in reqs:
+        d = r.to_dict()
+        if r.student_user: 
+            d['student_name'] = r.student_user.name
+            d['student_id'] = r.user_id 
+            d['student_email'] = r.student_user.email
+        results.append(d)
     return jsonify(results), 200
 
-# --- 4. ACTUALIZAR ESTADO DE POSTULACIÓN (APROBAR/RECHAZAR) ---
-@admin_bp.route('/api/applications/<int:id>', methods=['PUT'])
+@admin_bp.route('/api/admin/tutor-requests/<int:id>/status', methods=['PUT'])
 @jwt_required()
-def update_app_status(id):
-    ap = Application.query.get(id)
-    if not ap:
-        return jsonify({'error': 'Aplicación no encontrada'}), 404
-        
-    ap.status = request.json.get('status')
-    db.session.commit()
-    return jsonify({'message': 'Updated'}), 200
+def update_tutor_status(id):
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    data = request.json
+    req = TutorRequest.query.get(id)
+    if req:
+        req.status = data.get('status')
+        if 'tutor_name' in data:
+            req.assigned_tutor = data['tutor_name']
+        if 'tutor_email' in data:
+            req.tutor_email = data['tutor_email']
+        db.session.commit()
+        return jsonify({'message': 'Estado y Tutor actualizados'}), 200
+    return jsonify({'error': 'No encontrado'}), 404
 
-# --- 5. REPORTES PDF (CV ATS) ---
-@admin_bp.route('/api/admin/export-pdf/<int:student_id>', methods=['GET'])
+# ==============================================================================
+# 5. PERFIL DETALLADO DEL ESTUDIANTE (MODAL Y GENERACIÓN DE CV)
+# ==============================================================================
+@admin_bp.route('/api/admin/students/<int:id>', methods=['GET'])
 @jwt_required()
-def export_pdf(student_id):
-    user = User.query.get(student_id)
-    if not user: return jsonify({'error': 'Usuario no encontrado'}), 404
-    
-    # Buscamos si tiene tutor aprobado para ponerlo en el PDF
-    tutor_req = TutorRequest.query.filter_by(student_id=student_id, status='Aprobado').first()
-    
-    pdf_buffer = generate_student_cv_pdf(user, tutor_req)
-    
-    response = make_response(pdf_buffer.getvalue())
-    response.headers['Content-Type'] = 'application/pdf'
-    # Limpiamos el nombre para que no de error en la descarga
-    safe_name = user.name.replace(" ", "_")
-    response.headers['Content-Disposition'] = f'attachment; filename=cv_{safe_name}.pdf'
-    return response
+def get_student_profile_detailed(id):
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
 
-# --- 6. MEMORANDO DE ASIGNACIÓN (PDF) ---
-@admin_bp.route('/api/admin/export-assignment/<int:request_id>', methods=['GET'])
-@jwt_required()
-def export_assignment_pdf(request_id):
-    req = TutorRequest.query.get(request_id)
-    if not req or req.status != 'Aprobado': 
-        return jsonify({'error': 'Solicitud no aprobada o no encontrada'}), 400
-        
-    student = User.query.get(req.student_id)
-    
-    pdf_buffer = generate_memo_pdf(req, student.name, student.email)
-    
-    response = make_response(pdf_buffer.getvalue())
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = 'attachment; filename=memo_asignacion.pdf'
-    return response
+    student = User.query.get(id)
+    if not student: return jsonify({'error': 'Estudiante no encontrado'}), 404
 
-# --- 7. REPORTE DIARIO (JSON/Excel data) ---
-@admin_bp.route('/api/admin/daily-report', methods=['GET'])
+    experiences = Experience.query.filter_by(user_id=id).all()
+    certifications = Certification.query.filter_by(user_id=id).all()
+
+    response = student.to_dict()
+    response['experiences'] = [exp.to_dict() for exp in experiences]
+    response['certifications'] = [cert.to_dict() for cert in certifications]
+
+    return jsonify(response), 200
+
+# ==============================================================================
+# 6. GESTIÓN DE CITAS / ENTREVISTAS
+# ==============================================================================
+@admin_bp.route('/api/admin/appointments', methods=['GET'])
 @jwt_required()
-def daily_report():
-    date_param = request.args.get('date', datetime.datetime.now().strftime("%Y-%m-%d"))
+def get_all_appointments_admin():
+    current_user_id = int(get_jwt_identity())
+    if not check_admin(current_user_id): return jsonify({'error': 'No autorizado'}), 403
+    appts = Appointment.query.order_by(Appointment.date.desc(), Appointment.time.asc()).all()
+    results = []
+    for apt in appts:
+        data = apt.to_dict()
+        if apt.student_user:
+            data['student_name'] = apt.student_user.name
+            data['student_email'] = apt.student_user.email
+        results.append(data)
+    return jsonify(results), 200
+
+# ==============================================================================
+# 7. DESCARGA DE ARCHIVOS
+# ==============================================================================
+@admin_bp.route('/api/uploads/<filename>', methods=['GET'])
+def download_file(filename):
     try:
-        apps = Application.query.filter_by(status='Aprobado', date=date_param).all()
-        report_data = []
-        for app in apps:
-            student = User.query.get(app.student_id)
-            opp = app.opportunity
-            tutor_req = TutorRequest.query.filter_by(student_id=student.id).first()
-            
-            report_data.append({
-                "fecha_aprobacion": app.date,
-                "estudiante": student.name,
-                "email": student.email,
-                "empresa": opp.company,
-                "cargo": opp.title,
-                "documentacion_subida": "SÍ" if tutor_req else "NO",
-                "estado_tutor": tutor_req.status if tutor_req else "Sin Solicitud"
-            })
-        return jsonify(report_data), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
+    except Exception:
+        return jsonify({'error': 'Archivo no encontrado'}), 404
