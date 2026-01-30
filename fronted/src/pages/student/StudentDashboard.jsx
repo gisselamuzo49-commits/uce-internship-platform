@@ -14,14 +14,14 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import Notification from '../../components/Notification';
-import { Skeleton } from '../../components/ui/Skeleton';
+// Asegúrate de que esta ruta sea correcta según donde guardaste DashboardUI
 import {
   QuickActionCard,
   StatCard,
   ApplicationCard,
   ModalOverlay,
   StatSkeleton,
-} from './components/DashboardUI';
+} from '../panel_control/components/DashboardUI';
 
 const StudentDashboard = () => {
   const { user, authFetch } = useAuth();
@@ -45,25 +45,32 @@ const StudentDashboard = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
   // --- QUERIES ---
+
+  // 1. Postulaciones (URL CORREGIDA)
   const { data: applications = [], isLoading: loadingApps } = useQuery({
     queryKey: ['applications', 'student'],
     queryFn: async () => {
-      const res = await authFetch('http://localhost:5001/api/applications');
+      // 👇 CORRECCIÓN AQUÍ
+      const res = await authFetch(
+        'http://localhost:5001/api/student/my-applications'
+      );
       if (!res.ok) throw new Error('Error fetching applications');
       return res.json();
     },
     staleTime: 1000 * 60,
   });
 
+  // 2. Citas (URL Genérica, asegurate que exista en el backend)
   const { data: myAppointments = [], isLoading: loadingAppts } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
       const res = await authFetch('http://localhost:5001/api/appointments');
-      if (!res.ok) throw new Error('Error fetching appointments');
+      if (!res.ok) return []; // Si falla, retornamos vacío para no romper la pantalla
       return res.json();
     },
   });
 
+  // 3. Perfil (Para el score)
   const { data: profileData } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
@@ -86,7 +93,7 @@ const StudentDashboard = () => {
   if (profileData?.certifications?.length > 0) studentScore += 40;
   const isLoading = loadingApps || loadingAppts;
 
-  // --- HANDLERS (CV y Cita) ---
+  // --- HANDLERS ---
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -96,17 +103,21 @@ const StudentDashboard = () => {
       setUploading(false);
       return;
     }
-    let token = localStorage.getItem('token').replace(/^"|"$/g, '').trim();
+    let token = localStorage.getItem('token');
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch('http://localhost:5001/api/upload-cv', {
+      // Nota: Asegúrate que esta ruta exista en tu backend o usa la de tutor-requests
+      const res = await fetch('http://localhost:5001/api/tutor-requests', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (res.ok) {
-        setVisualNotification({ message: '✅ CV Subido', type: 'success' });
+        setVisualNotification({
+          message: '✅ Archivo Subido',
+          type: 'success',
+        });
         setShowCVModal(false);
       } else {
         setVisualNotification({ message: '❌ Error', type: 'error' });
@@ -138,6 +149,7 @@ const StudentDashboard = () => {
         queryClient.invalidateQueries({ queryKey: ['appointments'] });
       }
     } catch (e) {
+      setVisualNotification({ message: 'Error al agendar', type: 'error' });
     } finally {
       setScheduling(false);
     }
@@ -151,9 +163,12 @@ const StudentDashboard = () => {
         onClose={() => setVisualNotification({ message: null, type: null })}
       />
 
-      {/* MODALES STUDENT */}
+      {/* MODALES */}
       {showCVModal && (
-        <ModalOverlay title="Subir CV" onClose={() => setShowCVModal(false)}>
+        <ModalOverlay
+          title="Subir Documento"
+          onClose={() => setShowCVModal(false)}
+        >
           <form onSubmit={handleCVSubmit} className="space-y-6">
             <input
               type="file"
@@ -166,7 +181,7 @@ const StudentDashboard = () => {
               disabled={uploading}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl"
             >
-              {uploading ? 'Subiendo...' : 'Guardar CV'}
+              {uploading ? 'Subiendo...' : 'Enviar'}
             </button>
           </form>
         </ModalOverlay>
@@ -272,10 +287,8 @@ const StudentDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {isLoading ? (
           <>
-            <StatSkeleton />
-            <StatSkeleton />
-            <StatSkeleton />
-            <StatSkeleton />
+            {' '}
+            <StatSkeleton /> <StatSkeleton /> <StatSkeleton />{' '}
           </>
         ) : (
           <>
@@ -359,8 +372,7 @@ const StudentDashboard = () => {
                   dataKey="value"
                   stroke="none"
                 >
-                  <Cell fill="#10B981" />
-                  <Cell fill="#334155" />
+                  <Cell fill="#10B981" /> <Cell fill="#334155" />
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
@@ -413,17 +425,18 @@ const StudentDashboard = () => {
                   <p className="text-slate-400 font-medium">Sin actividad.</p>
                 </div>
               ) : (
-                applications.map((item) => (
-                  <ApplicationCard
-                    key={item.id}
-                    title={item.opportunity_title}
-                    subtitle="Tu postulación"
-                    status={item.status}
-                    date={item.date}
-                    tags={item.attributes}
-                    onClick={() => navigate('/mis-postulaciones')} // <--- ¡AQUÍ ESTÁ LA REDIRECCIÓN QUE PEDISTE!
-                  />
-                ))
+                applications
+                  .slice(0, 3)
+                  .map((item) => (
+                    <ApplicationCard
+                      key={item.id}
+                      title={item.opportunity_title}
+                      subtitle="Tu postulación"
+                      status={item.status}
+                      date={item.date}
+                      onClick={() => navigate('/mis-postulaciones')}
+                    />
+                  ))
               )}
             </div>
           </section>

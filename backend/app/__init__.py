@@ -1,32 +1,46 @@
 from flask import Flask
+from flask_cors import CORS
+from app.extensions import db, jwt, migrate, mail
+# Importamos la configuración
 from config import Config
-from app.extensions import db, jwt, cors
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Inicializar extensiones
+    # ------------------------------------------------------------
+    # 1. INICIALIZAR EXTENSIONES
+    # ------------------------------------------------------------
     db.init_app(app)
     jwt.init_app(app)
+    migrate.init_app(app, db)
+    mail.init_app(app)
     
-    # 👇 CAMBIO CLAVE AQUÍ PARA ARREGLAR "FAILED TO FETCH"
-    cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
+    # 👇 CORRECCIÓN DE CORS (IMPORTANTE)
+    # Esto permite Credenciales (Cookies/Tokens) y Headers de Autorización
+    CORS(app, 
+         resources={r"/*": {"origins": "*"}}, 
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"])
 
-    # Importar Blueprints
+    # ------------------------------------------------------------
+    # 2. REGISTRAR BLUEPRINTS (RUTAS)
+    # ------------------------------------------------------------
+    
+    # A) Autenticación (Login/Registro)
     from app.routes.auth_routes import auth_bp
-    from app.routes.student_routes import student_bp
-    from app.routes.admin_routes import admin_bp
-    from app.routes.opportunity_routes import opp_bp 
-    
-    # Registrar Blueprints
     app.register_blueprint(auth_bp)
-    app.register_blueprint(student_bp)
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(opp_bp) 
 
-    # Crear tablas
-    with app.app_context():
-        db.create_all()
+    # B) Oportunidades (Empleos/Pasantías)
+    from app.routes.opportunity_routes import opportunity_bp 
+    app.register_blueprint(opportunity_bp)
+
+    # C) Estudiantes (Perfil, Mis Postulaciones)
+    from app.routes.student_routes import student_bp
+    app.register_blueprint(student_bp)
+
+    # D) Administrador
+    from app.routes.admin_routes import admin_bp
+    app.register_blueprint(admin_bp)
 
     return app

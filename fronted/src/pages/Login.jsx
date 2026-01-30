@@ -1,46 +1,48 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { useForm } from 'react-hook-form'; // <--- 1. IMPORTAMOS RHF
-import { Mail, Lock, EyeOff, Loader } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { Mail, EyeOff, Loader } from 'lucide-react'; // Ajusta los imports si te faltan iconos
 import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
-  // 2. CONFIGURAMOS EL HOOK
-  // Eliminamos el useState de formData. RHF se encarga ahora.
+  // Configuración de React Hook Form
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm();
 
-  // Mantenemos estos estados para la lógica de API y UI
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 3. NUEVA FUNCIÓN DE SUBMIT
-  // Recibe 'data' automáticamente con { email: '...', password: '...' }
+  // --- FUNCIÓN DE SUBMIT CORREGIDA ---
   const onSubmit = async (data) => {
     setLoading(true);
     setApiError('');
 
     const res = await login(data.email, data.password);
 
-    if (res.success) navigate('/dashboard');
-    else {
+    if (res.success) {
+      navigate('/dashboard'); // ✅ AHORA SÍ FUNCIONA PARA TODOS
+    } else {
       setApiError(res.error || 'Credenciales incorrectas');
       setLoading(false);
     }
   };
 
+  // --- GOOGLE LOGIN CORREGIDO ---
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
     const res = await googleLogin(credentialResponse.credential);
-    if (res.success) navigate('/dashboard');
-    else {
+
+    if (res.success) {
+      if (res.role === 'admin') navigate('/dashboard');
+      else navigate('/perfil');
+    } else {
       setApiError(res.error);
       setLoading(false);
     }
@@ -48,7 +50,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center font-sans overflow-hidden">
-      {/* 1. FONDO TEATRO UCE */}
+      {/* 1. FONDO */}
       <div className="absolute inset-0 z-0">
         <img
           src="/teatro-uce.jpg"
@@ -58,14 +60,14 @@ const Login = () => {
         <div className="absolute inset-0 bg-black/75"></div>
       </div>
 
-      {/* 2. LOGO UCE IZQUIERDA */}
+      {/* 2. LOGO UCE */}
       <div className="absolute top-10 left-10 z-10">
         <div className="text-white font-serif italic text-4xl font-light border-2 border-white rounded-full w-14 h-14 flex items-center justify-center">
           Uce
         </div>
       </div>
 
-      {/* 3. TÍTULO SIIU */}
+      {/* 3. TÍTULO */}
       <div className="relative z-10 text-center text-white mb-8">
         <h1 className="text-4xl font-bold tracking-tight">SIIU</h1>
         <p className="text-xs font-medium tracking-[0.4em] uppercase opacity-80">
@@ -74,21 +76,21 @@ const Login = () => {
       </div>
 
       {/* 4. TARJETA DE LOGIN */}
-      <div className="relative z-20 w-full max-w-[420px] bg-[#1e2329] p-10 rounded-[2rem] shadow-2xl border border-white/5 animate-fade-in">
+      <div className="relative z-20 w-full max-w-[420px] bg-[#1e2329] p-10 rounded-[2rem] shadow-2xl border border-white/5">
         <h2 className="text-2xl text-white font-semibold text-center mb-8">
           Sign in
         </h2>
 
-        {/* MOSTRAR ERROR DE API SI EXISTE */}
+        {/* ERROR API */}
         {apiError && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-xl text-red-200 text-xs text-center font-bold">
             {apiError}
           </div>
         )}
 
-        {/* 5. FORMULARIO CONECTADO A RHF */}
+        {/* FORMULARIO */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* --- EMAIL --- */}
+          {/* Email */}
           <div className="space-y-1">
             <label className="text-gray-400 text-xs ml-1 font-bold uppercase tracking-wider">
               Email
@@ -96,19 +98,17 @@ const Login = () => {
             <input
               type="email"
               placeholder="example@uce.edu.ec"
-              // CONEXIÓN AL HOOK:
               {...register('email', { required: true })}
               className={`w-full bg-[#d9d9d9] text-gray-900 rounded-xl px-4 py-3 outline-none focus:ring-2 font-medium placeholder-gray-500
                 ${errors.email ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500'}
               `}
             />
-            {/* Feedback visual discreto */}
             {errors.email && (
               <span className="text-red-400 text-[10px] ml-1">Requerido</span>
             )}
           </div>
 
-          {/* --- PASSWORD --- */}
+          {/* Password */}
           <div className="space-y-1">
             <label className="text-gray-400 text-xs ml-1 font-bold uppercase tracking-wider">
               Password
@@ -117,8 +117,7 @@ const Login = () => {
               <input
                 type="password"
                 placeholder="Enter at least 8+ characters"
-                // CONEXIÓN AL HOOK:
-                {...register('password', { required: true, minLength: 8 })}
+                {...register('password', { required: true, minLength: 6 })}
                 className={`w-full bg-[#d9d9d9] text-gray-900 rounded-xl px-4 py-3 outline-none focus:ring-2 font-medium placeholder-gray-500
                   ${errors.password ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500'}
                 `}
@@ -130,14 +129,13 @@ const Login = () => {
             </div>
             {errors.password && (
               <span className="text-red-400 text-[10px] ml-1">
-                Mínimo 8 caracteres
+                Mínimo 6 caracteres
               </span>
             )}
           </div>
 
           <div className="flex items-center justify-between text-[11px] font-bold text-gray-400">
             <label className="flex items-center gap-2 cursor-pointer">
-              {/* Checkbox también se puede registrar si quisieras guardar la preferencia */}
               <input
                 type="checkbox"
                 {...register('remember')}
@@ -164,7 +162,7 @@ const Login = () => {
         </form>
       </div>
 
-      {/* 5. SECCIÓN GOOGLE (No cambia, solo se queda visualmente igual) */}
+      {/* 5. GOOGLE LOGIN */}
       <div className="relative z-20 w-full max-w-[420px] mt-8 text-center">
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 border-t border-gray-700"></div>
@@ -175,10 +173,9 @@ const Login = () => {
         </div>
 
         <div className="relative inline-block overflow-hidden rounded-full">
-          {/* DISEÑO DEL BOTÓN */}
+          {/* Botón visual */}
           <div className="flex items-center bg-[#4d4d4d] py-1 pl-1 pr-10 rounded-full shadow-lg pointer-events-none">
             <div className="bg-white p-2 rounded-full flex items-center justify-center shadow-md">
-              {/* SVG DE GOOGLE (Resumido para no ocupar espacio visual aquí, es el mismo tuyo) */}
               <svg width="24" height="24" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -202,13 +199,12 @@ const Login = () => {
               Sign up with Google
             </span>
           </div>
-
+          {/* Botón funcional invisible encima */}
           <div className="absolute inset-0 opacity-0 cursor-pointer">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
               onError={() => setApiError('Google Login Failed')}
               useOneTap
-              width="300"
             />
           </div>
         </div>
