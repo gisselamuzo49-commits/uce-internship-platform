@@ -6,7 +6,6 @@ import {
   CheckCircle,
   XCircle,
   FileText,
-  User,
   Briefcase,
   Download,
   Search,
@@ -18,6 +17,8 @@ import {
   X,
   Mail,
   AlertTriangle,
+  Upload, // Icono para subir
+  Paperclip, // Icono decorativo
 } from 'lucide-react';
 
 const AdminRequests = () => {
@@ -29,13 +30,13 @@ const AdminRequests = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
-  // Estado del Modal (Guardamos ID para buscar info completa)
+  // Estado del Modal
   const [viewingStudentId, setViewingStudentId] = useState(null);
   const [basicStudentInfo, setBasicStudentInfo] = useState(null);
 
-  // --- 1. CARGAR LISTAS (DATA FETCHING) ---
+  // --- 1. CARGAR DATOS ---
 
-  // A. Postulaciones de Empleo
+  // A. Postulaciones
   const {
     data: applications,
     isLoading: loadingApps,
@@ -48,10 +49,10 @@ const AdminRequests = () => {
       if (!res.ok) throw new Error('Error al cargar postulaciones');
       return res.json();
     },
-    retry: 1, // No reintentar infinitamente si falla
+    retry: 1,
   });
 
-  // B. Solicitudes de Tutoría (Formalización)
+  // B. Tutorías
   const {
     data: tutorRequests,
     isLoading: loadingTutor,
@@ -67,7 +68,7 @@ const AdminRequests = () => {
     retry: 1,
   });
 
-  // C. Perfil Completo (Solo carga cuando se abre el modal)
+  // C. Perfil Completo
   const { data: fullProfile, isLoading: loadingProfile } = useQuery({
     queryKey: ['student-profile', viewingStudentId],
     queryFn: async () => {
@@ -82,9 +83,52 @@ const AdminRequests = () => {
     enabled: !!viewingStudentId,
   });
 
-  // --- 2. GENERADOR DE CV (PDF) ---
+  // --- 2. LOGICA DE SUBIDA DE MEMO (ESTO ES LO QUE TE FALTABA) ---
+  const uploadMemoMutation = useMutation({
+    mutationFn: async ({ id, file }) => {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Obtenemos token manualmente para usar fetch puro (necesario para archivos)
+      const token = localStorage.getItem('token');
+
+      const res = await fetch(
+        `${baseUrl}/api/admin/tutor-requests/${id}/upload-memo`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }, // NO poner Content-Type
+          body: formData,
+        }
+      );
+
+      if (!res.ok) throw new Error('Error al subir el memo');
+      return res.json();
+    },
+    onSuccess: () => {
+      alert('✅ Memo subido correctamente');
+      queryClient.invalidateQueries(['admin-tutor-requests']);
+    },
+    onError: () => {
+      alert('❌ Error al subir el archivo');
+    },
+  });
+
+  // 👇 ESTA FUNCIÓN ES LA QUE DABA EL ERROR "NOT DEFINED" 👇
+  const handleFileChange = (e, reqId) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        alert('Solo se permiten archivos PDF');
+        return;
+      }
+      // Llamamos a la mutación para subir
+      uploadMemoMutation.mutate({ id: reqId, file });
+    }
+  };
+
+  // --- 3. GENERADOR DE CV (PDF) ---
   const generateStudentCV = (profileData, fallbackData) => {
-    // Combinamos datos del perfil detallado con los datos básicos de la tabla
     const student = {
       name: fallbackData?.name || profileData?.name || 'Estudiante',
       email: fallbackData?.email || profileData?.email || 'Sin correo',
@@ -96,9 +140,8 @@ const AdminRequests = () => {
     const margin = 20;
     let y = 20;
 
-    // Encabezado
     doc.setFontSize(22);
-    doc.setTextColor(30, 58, 138); // Azul
+    doc.setTextColor(30, 58, 138);
     doc.text(student.name, margin, y);
     y += 10;
 
@@ -111,7 +154,6 @@ const AdminRequests = () => {
     doc.line(margin, y, 190, y);
     y += 10;
 
-    // Experiencia
     doc.setFontSize(16);
     doc.setTextColor(0);
     doc.text('Experiencia Laboral', margin, y);
@@ -130,7 +172,6 @@ const AdminRequests = () => {
           y
         );
         y += 7;
-        // Manejo de texto largo en descripción
         if (exp.description) {
           const splitDesc = doc.splitTextToSize(exp.description, 170);
           doc.text(splitDesc, margin, y);
@@ -146,8 +187,6 @@ const AdminRequests = () => {
     }
 
     y += 5;
-
-    // Educación
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('Formación y Cursos', margin, y);
@@ -169,21 +208,17 @@ const AdminRequests = () => {
       doc.text('No hay educación registrada.', margin, y);
     }
 
-    // Pie de página
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.text('Generado por Plataforma de Gestión', margin, 280);
-
     doc.save(`CV_${student.name.replace(/\s+/g, '_')}.pdf`);
   };
 
-  // --- 3. MUTACIONES Y HANDLERS ---
+  // --- 4. MUTACIONES Y HANDLERS DE ESTADO ---
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, type, status, tutor_name, tutor_email }) => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
       const body = { status };
-
-      // Adjuntamos datos del tutor si existen
       if (tutor_name) body.tutor_name = tutor_name;
       if (tutor_email) body.tutor_email = tutor_email;
 
@@ -195,7 +230,6 @@ const AdminRequests = () => {
       if (!res.ok) throw new Error('Error al actualizar estado');
     },
     onSuccess: () => {
-      // Recargamos las tablas automáticamente
       queryClient.invalidateQueries(['admin-applications']);
       queryClient.invalidateQueries(['admin-tutor-requests']);
     },
@@ -203,15 +237,9 @@ const AdminRequests = () => {
 
   const handleStatusChange = (id, type, status) => {
     if (type === 'tutor-requests' && status === 'Aprobado') {
-      // 1. Pedir Nombre
       const tutorName = prompt('✅ Ingresa el NOMBRE del Docente Tutor:');
-      if (!tutorName?.trim()) return; // Cancelar si está vacío
-
-      // 2. Pedir Correo
+      if (!tutorName?.trim()) return;
       const tutorEmail = prompt('📧 Ingresa el CORREO del Docente Tutor:');
-      // Validación opcional: Si quieres que el correo sea obligatorio, descomenta esto:
-      // if (!tutorEmail?.trim()) { alert("El correo es obligatorio"); return; }
-
       updateStatusMutation.mutate({
         id,
         type,
@@ -220,7 +248,6 @@ const AdminRequests = () => {
         tutor_email: tutorEmail,
       });
     } else {
-      // Confirmación estándar para otros casos
       if (
         window.confirm(`¿Seguro que deseas cambiar el estado a: ${status}?`)
       ) {
@@ -230,12 +257,8 @@ const AdminRequests = () => {
   };
 
   const handleOpenProfile = (item) => {
-    // Intentamos buscar el ID en varios campos posibles para robustez
     const id = item.student_id || item.user_id;
-    if (!id) {
-      alert('Error: No se encontró el ID del estudiante en este registro.');
-      return;
-    }
+    if (!id) return alert('Error: No se encontró el ID del estudiante.');
     setViewingStudentId(id);
     setBasicStudentInfo({ name: item.student_name, email: item.student_email });
   };
@@ -266,7 +289,7 @@ const AdminRequests = () => {
     );
   };
 
-  // --- 4. RENDERIZADO CONDICIONAL (PROTECCIÓN) ---
+  // --- RENDERIZADO ---
 
   if (loadingApps || loadingTutor) {
     return (
@@ -279,7 +302,6 @@ const AdminRequests = () => {
     );
   }
 
-  // Si hay error (ej: 403 Forbidden porque se borró la DB o caducó token)
   if (isErrorApps || isErrorTutor) {
     return (
       <div className="flex flex-col justify-center items-center h-[80vh]">
@@ -291,8 +313,7 @@ const AdminRequests = () => {
             Error de Conexión
           </h3>
           <p className="text-slate-500 mb-6 text-sm">
-            No se pudieron cargar los datos. Tu sesión puede haber expirado o no
-            tienes permisos de administrador.
+            No se pudieron cargar los datos.
           </p>
           <button
             onClick={() => (window.location.href = '/login')}
@@ -304,8 +325,6 @@ const AdminRequests = () => {
       </div>
     );
   }
-
-  // --- 5. LÓGICA DE FILTRADO (Segura contra arrays nulos) ---
 
   const safeApps = Array.isArray(applications) ? applications : [];
   const safeTutors = Array.isArray(tutorRequests) ? tutorRequests : [];
@@ -406,14 +425,12 @@ const AdminRequests = () => {
                             <p className="font-bold text-slate-800 text-sm">
                               {app.student_name}
                             </p>
-                            <div className="flex items-center gap-3 mt-1">
-                              <button
-                                onClick={() => handleOpenProfile(app)}
-                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 font-bold"
-                              >
-                                <Eye size={14} /> Ver Perfil
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => handleOpenProfile(app)}
+                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 font-bold mt-1"
+                            >
+                              <Eye size={14} /> Ver Perfil
+                            </button>
                           </div>
                         </div>
                       </td>
@@ -476,8 +493,9 @@ const AdminRequests = () => {
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold tracking-wider">
               <tr>
                 <th className="p-4">Estudiante</th>
-                <th className="p-4">Documento</th>
+                <th className="p-4">Solicitud</th>
                 <th className="p-4">Tutor Asignado</th>
+                <th className="p-4">Memo/Aval</th> {/* NUEVA COLUMNA */}
                 <th className="p-4">Estado</th>
                 <th className="p-4 text-right">Acciones</th>
               </tr>
@@ -485,7 +503,7 @@ const AdminRequests = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredTutor.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="p-8 text-center text-slate-400">
+                  <td colSpan="6" className="p-8 text-center text-slate-400">
                     No hay solicitudes de tutoría.
                   </td>
                 </tr>
@@ -516,7 +534,7 @@ const AdminRequests = () => {
                             rel="noopener noreferrer"
                             className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1 font-bold"
                           >
-                            <Download size={12} /> PDF
+                            <Download size={12} /> Ver PDF
                           </a>
                         </div>
                       </div>
@@ -524,14 +542,12 @@ const AdminRequests = () => {
                     <td className="p-4">
                       {req.assigned_tutor ? (
                         <div className="flex flex-col gap-1">
-                          {/* NOMBRE DEL TUTOR */}
                           <div className="flex items-center gap-2 text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full w-fit">
                             <UserPlus size={14} />
                             <span className="text-xs font-bold">
                               {req.assigned_tutor}
                             </span>
                           </div>
-                          {/* CORREO DEL TUTOR */}
                           {req.tutor_email && (
                             <div className="flex items-center gap-1.5 text-slate-500 ml-1">
                               <Mail size={12} />
@@ -547,6 +563,41 @@ const AdminRequests = () => {
                         </span>
                       )}
                     </td>
+
+                    {/* NUEVA CELDA: SUBIR MEMO */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        {req.memo_filename ? (
+                          <a
+                            href={`http://localhost:5001/api/uploads/${req.memo_filename}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-100"
+                          >
+                            <CheckCircle size={12} /> Ver Memo
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">
+                            Pendiente
+                          </span>
+                        )}
+
+                        {/* Input oculto para subir archivo */}
+                        <label
+                          className="cursor-pointer p-1.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition"
+                          title="Subir Memo/Aval"
+                        >
+                          <Upload size={16} />
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="application/pdf"
+                            onChange={(e) => handleFileChange(e, req.id)}
+                          />
+                        </label>
+                      </div>
+                    </td>
+
                     <td className="p-4">{getStatusBadge(req.status)}</td>
                     <td className="p-4 text-right">
                       {req.status === 'Pendiente' && (
@@ -590,7 +641,6 @@ const AdminRequests = () => {
       {viewingStudentId && (
         <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex justify-center items-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-            {/* Header Modal */}
             <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50 rounded-t-2xl">
               <div className="flex items-center gap-4">
                 <div className="h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg">
@@ -612,8 +662,6 @@ const AdminRequests = () => {
                 <X size={20} />
               </button>
             </div>
-
-            {/* Body Modal */}
             <div className="p-8 overflow-y-auto space-y-8 min-h-[300px]">
               {loadingProfile ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
@@ -636,7 +684,6 @@ const AdminRequests = () => {
                       <Download size={16} /> Descargar Hoja de Vida
                     </button>
                   </div>
-
                   <section>
                     <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
                       <Briefcase className="text-purple-600" /> Experiencia
@@ -663,7 +710,6 @@ const AdminRequests = () => {
                       </p>
                     )}
                   </section>
-
                   <section>
                     <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
                       <GraduationCap className="text-orange-500" /> Educación
