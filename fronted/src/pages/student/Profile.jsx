@@ -15,7 +15,9 @@ import {
   Briefcase,
   CheckCircle,
   AlertTriangle,
-  UserCheck, // Nuevo icono para el tutor
+  UserCheck,
+  FileText,
+  Download,
 } from 'lucide-react';
 
 const UserProfile = () => {
@@ -74,11 +76,37 @@ const UserProfile = () => {
 
   const fetchRequests = async () => {
     try {
-      // Esta ruta debe devolver assigned_tutor y tutor_email gracias a tu cambio en models.py
       const res = await authFetch('http://localhost:5001/api/tutor-requests');
       if (res.ok) setRequests(await res.json());
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // --- DESCARGAR MEMO ---
+  const handleDownloadMemo = async (filename) => {
+    if (!filename) return; // Seguridad extra
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `http://localhost:5001/api/uploads/${filename}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!response.ok) throw new Error('Error al descargar');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      showNotification('❌ Error al descargar el archivo', 'error');
     }
   };
 
@@ -459,7 +487,7 @@ const UserProfile = () => {
             </div>
           </div>
 
-          {/* FORMALIZACIÓN (TUTOR) - ¡ACTUALIZADO AQUÍ! */}
+          {/* FORMALIZACIÓN (TUTOR Y MEMO) */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
               <BookOpen className="text-blue-600" /> Formalización
@@ -512,20 +540,43 @@ const UserProfile = () => {
                       </span>
                     </div>
 
-                    {/* 👇 AQUÍ MOSTRAMOS AL TUTOR Y SU CORREO 👇 */}
+                    {/* DETALLES DE ASIGNACIÓN (TUTOR Y MEMO) */}
                     {req.assigned_tutor && (
-                      <div className="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        <p className="text-xs font-bold text-blue-800 uppercase mb-1 flex items-center gap-1">
-                          <UserCheck size={14} /> Docente Asignado
-                        </p>
-                        <p className="text-sm font-bold text-slate-700">
-                          {req.assigned_tutor}
-                        </p>
-                        {req.tutor_email && (
-                          <p className="text-xs text-blue-600 flex items-center gap-1 mt-1 font-medium">
-                            <Mail size={12} /> {req.tutor_email}
+                      <div className="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-100 space-y-2">
+                        {/* Info Tutor */}
+                        <div>
+                          <p className="text-xs font-bold text-blue-800 uppercase mb-1 flex items-center gap-1">
+                            <UserCheck size={14} /> Docente Asignado
                           </p>
-                        )}
+                          <p className="text-sm font-bold text-slate-700">
+                            {req.assigned_tutor}
+                          </p>
+                          {req.tutor_email && (
+                            <p className="text-xs text-blue-600 flex items-center gap-1 mt-1 font-medium">
+                              <Mail size={12} /> {req.tutor_email}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Botón Descarga Memo con Lógica de Bloqueo */}
+                        <button
+                          onClick={() =>
+                            req.memo_filename &&
+                            handleDownloadMemo(req.memo_filename)
+                          }
+                          disabled={!req.memo_filename}
+                          className={`w-full mt-2 font-bold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-2 transition-all
+                            ${
+                              req.memo_filename
+                                ? 'bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 cursor-pointer shadow-sm'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-70'
+                            }`}
+                        >
+                          <FileText size={14} />
+                          {req.memo_filename
+                            ? 'Descargar Memo de Asignación'
+                            : 'AVAL  Pendiente de Carga'}
+                        </button>
                       </div>
                     )}
                   </div>

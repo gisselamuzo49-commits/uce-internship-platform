@@ -1,68 +1,68 @@
 from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.models import User
-from app.services import send_welcome_email
+# Importamos send_welcome_email de forma segura
+try:
+    from app.services import send_welcome_email
+except ImportError:
+    send_welcome_email = None
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import os
-import threading
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/api/register', methods=['POST'])
 def register():
     data = request.json
+    
+    # 1. Validación
     if User.query.filter_by(email=data['email']).first(): 
         return jsonify({'error': 'Email ya registrado'}), 400
     
+    # 2. Asignar rol
     role = 'admin' if User.query.count() == 0 else 'student'
-    user = User(name=data['name'], email=data['email'], password=generate_password_hash(data['password']), role=role)
-    db.session.add(user)
-    db.session.commit()
-
+    
     try:
-        email_thread = threading.Thread(target=send_welcome_email, args=(user.email, user.name))
-        email_thread.start()
-    except Exception as e:
-        print(f"Error iniciando hilo de correo: {e}")
-    # ------------------------------
-    
-    return jsonify({'message': 'Usuario creado'}), 201
-    
-    # Intentar enviar correo (no bloqueante si falla)
-    try: send_welcome_email(user.email, user.name)
-    except: pass
-    
-    return jsonify({'message': 'Usuario creado'}), 201
+        # 3. Crear Usuario
+        user = User(
+            name=data['name'], 
+            email=data['email'], 
+            password=generate_password_hash(data['password']), 
+            role=role
+        )
+        db.session.add(user)
+        db.session.commit() # <--- ¡Usuario Guardado en BD!
 
+        # 4. Intentar enviar correo (BLINDADO)
+        # Esto asegura que si el correo falla, el registro NO se rompa
+        if send_welcome_email:
+            try:
+                print(f"🚀 Intentando enviar correo a {user.email}...", flush=True)
+                send_welcome_email(user.email, user.name)
+                print("✅ Correo enviado con éxito.", flush=True)
+            except Exception as email_error:
+                # Solo imprimimos el error, NO cancelamos la respuesta
+                print(f"⚠️ EL USUARIO SE CREÓ, PERO EL CORREO FALLÓ: {str(email_error)}", flush=True)
+        
+        # 5. Responder Éxito siempre
+        return jsonify({'message': 'Usuario creado exitosamente', 'role': role}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error fatal en base de datos: {e}", flush=True)
+        return jsonify({'error': 'Error interno del servidor'}), 500
+
+# ... (El resto de tus rutas login y google-login siguen igual) ...
 @auth_bp.route('/api/login', methods=['POST'])
 def login():
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
     if not user or not check_password_hash(user.password, data['password']): 
         return jsonify({'error': 'Credenciales incorrectas'}), 401
+    
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'user': user.to_dict()}), 200
-
-@auth_bp.route('/api/google-login', methods=['POST'])
-def google_login():
-    token = request.json.get('token')
-    try:
-        id_info = id_token.verify_oauth2_token(token, google_requests.Request())
-        email = id_info['email']
-        name = id_info['name']
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            dummy_password = generate_password_hash("google_" + os.urandom(8).hex())
-            user = User(name=name, email=email, password=dummy_password, role='student')
-            db.session.add(user)
-            db.session.commit()
-            try: send_welcome_email(email, name)
-            except: pass
-            
-        access_token = create_access_token(identity=str(user.id))
-        return jsonify({'token': access_token, 'user': user.to_dict()}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400

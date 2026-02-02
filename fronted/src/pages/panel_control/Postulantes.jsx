@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import * as XLSX from 'xlsx'; // Librería para Excel
+import * as XLSX from 'xlsx';
 import {
   FileSpreadsheet,
   Calendar,
   Search,
-  Download,
   UserCheck,
   Building,
   FileText,
@@ -15,10 +14,15 @@ import {
 const Postulantes = () => {
   const { authFetch } = useAuth();
 
-  // Fecha de hoy por defecto 'YYYY-MM-DD'
-  const today = new Date().toISOString().split('T')[0];
+  // --- CORRECCIÓN 1: OBTENER FECHA LOCAL CORRECTA ---
+  const getLocalDate = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    const localDate = new Date(d.getTime() - offset);
+    return localDate.toISOString().split('T')[0];
+  };
 
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(getLocalDate());
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -26,12 +30,18 @@ const Postulantes = () => {
   const fetchReport = async () => {
     setLoading(true);
     try {
+      // Asegúrate de que tu backend (puerto 5001) esté corriendo y la ruta sea correcta
       const res = await authFetch(
         `http://localhost:5001/api/admin/daily-report?date=${selectedDate}`
       );
+
       if (res.ok) {
         const data = await res.json();
         setReportData(data);
+        // Console log para depurar si llegan datos
+        console.log('Datos recibidos para la fecha', selectedDate, ':', data);
+      } else {
+        console.error('Error en respuesta del servidor:', res.status);
       }
     } catch (error) {
       console.error('Error cargando reporte:', error);
@@ -42,13 +52,13 @@ const Postulantes = () => {
 
   useEffect(() => {
     fetchReport();
-  }, [selectedDate]); // Se recarga cada vez que cambias la fecha
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   // --- 2. FUNCIÓN DESCARGAR EXCEL ---
   const downloadExcel = () => {
     if (reportData.length === 0) return;
 
-    // A. Preparar datos para Excel (encabezados bonitos)
     const dataForExcel = reportData.map((item) => ({
       'Fecha Aprobación': item.fecha_aprobacion,
       Estudiante: item.estudiante,
@@ -60,12 +70,9 @@ const Postulantes = () => {
       'Tutor Asignado': item.nombre_tutor,
     }));
 
-    // B. Crear Hoja de Trabajo
     const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Aprobados');
-
-    // C. Descargar archivo
     XLSX.writeFile(workbook, `Reporte_Postulantes_${selectedDate}.xlsx`);
   };
 
@@ -79,7 +86,7 @@ const Postulantes = () => {
             Reporte de Aprobados
           </h1>
           <p className="text-slate-500 font-medium mt-1">
-            Genera listas de estudiantes aprobados para asignar tutor.
+            Estudiantes aprobados en la fecha seleccionada.
           </p>
         </div>
 
@@ -100,7 +107,11 @@ const Postulantes = () => {
           <button
             onClick={downloadExcel}
             disabled={reportData.length === 0}
-            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-white transition-all shadow-lg ${reportData.length > 0 ? 'bg-emerald-500 hover:bg-emerald-600 hover:-translate-y-1' : 'bg-slate-300 cursor-not-allowed'}`}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-white transition-all shadow-lg ${
+              reportData.length > 0
+                ? 'bg-emerald-500 hover:bg-emerald-600 hover:-translate-y-1'
+                : 'bg-slate-300 cursor-not-allowed'
+            }`}
           >
             <FileSpreadsheet size={20} />
             Exportar Excel
@@ -122,8 +133,10 @@ const Postulantes = () => {
             <h3 className="text-lg font-bold text-slate-600">
               Sin aprobaciones esta fecha
             </h3>
-            <p className="text-slate-400 text-sm">
-              Prueba seleccionando otro día en el calendario.
+            <p className="text-slate-400 text-sm mt-2">
+              Si aprobaste estudiantes hoy, verifica la hora del sistema.
+              <br />
+              Intenta seleccionar fechas anteriores.
             </p>
           </div>
         ) : (

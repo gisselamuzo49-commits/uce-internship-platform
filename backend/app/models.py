@@ -85,6 +85,7 @@ class TutorRequest(db.Model):
     title = db.Column(db.String(100), nullable=True)
     filename = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(50), default='Pendiente')
+    memo_filename = db.Column(db.String(255), nullable=True)
     date = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 👇 Datos del Tutor Asignado
@@ -100,7 +101,8 @@ class TutorRequest(db.Model):
             'status': self.status, 
             'date': self.date.strftime('%Y-%m-%d'),
             'assigned_tutor': self.assigned_tutor,
-            'tutor_email': self.tutor_email # <-- Agregado al diccionario
+            'tutor_email': self.tutor_email, # <-- Agregado al diccionario
+            'memo_filename': self.memo_filename
         }
 
 # ==============================================================================
