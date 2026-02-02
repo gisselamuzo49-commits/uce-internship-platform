@@ -1,53 +1,92 @@
 from app.extensions import db
 from datetime import datetime
 
-# ==============================================================================
-# 1. USUARIO (ESTUDIANTE / ADMIN)
-# ==============================================================================
+
+# USER MODEL (STUDENT / ADMIN)
 class User(db.Model):
     __tablename__ = 'users'
+
+    # Primary key
     id = db.Column(db.Integer, primary_key=True)
+
+    # Basic user information
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='student') # 'student' o 'admin'
 
-    # --- RELACIONES ---
-    # cascade="all, delete-orphan" asegura que si borras al usuario, se borren sus datos
-    applications = db.relationship('Application', backref='student_user', lazy=True, cascade="all, delete-orphan")
-    experiences = db.relationship('Experience', backref='student_user', lazy=True, cascade="all, delete-orphan")
-    certifications = db.relationship('Certification', backref='student_user', lazy=True, cascade="all, delete-orphan")
-    tutor_requests = db.relationship('TutorRequest', backref='student_user', lazy=True, cascade="all, delete-orphan")
-    appointments = db.relationship('Appointment', backref='student_user', lazy=True, cascade="all, delete-orphan")
+    # User role: 'student' or 'admin'
+    role = db.Column(db.String(20), default='student')
 
+    # Relationships
+    # cascade="all, delete-orphan" ensures related records are deleted with the user
+    applications = db.relationship(
+        'Application',
+        backref='student_user',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
+    experiences = db.relationship(
+        'Experience',
+        backref='student_user',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
+    certifications = db.relationship(
+        'Certification',
+        backref='student_user',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
+    tutor_requests = db.relationship(
+        'TutorRequest',
+        backref='student_user',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
+    appointments = db.relationship(
+        'Appointment',
+        backref='student_user',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
+    # Convert user object to dictionary (used by the frontend)
     def to_dict(self):
         return {
-            'id': self.id, 
-            'name': self.name, 
-            'email': self.email, 
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
             'role': self.role,
-            # Importante: Serializamos las listas para el Frontend
             'experiences': [exp.to_dict() for exp in self.experiences],
             'certifications': [cert.to_dict() for cert in self.certifications]
         }
 
-# ==============================================================================
-# 2. EXPERIENCIA LABORAL
-# ==============================================================================
+
+# WORK EXPERIENCE MODEL
 class Experience(db.Model):
     __tablename__ = 'experiences'
+
     id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign key referencing the user
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    title = db.Column(db.String(100), nullable=False) # En frontend se usa como 'role'
+
+    # Job information
+    title = db.Column(db.String(100), nullable=False)  # Used as 'role' in frontend
     company = db.Column(db.String(100), nullable=False)
     start_date = db.Column(db.String(20), nullable=False)
     end_date = db.Column(db.String(20), nullable=True)
     description = db.Column(db.Text, nullable=True)
 
+    # Serialize experience data
     def to_dict(self):
         return {
             'id': self.id,
-            'role': self.title, 
+            'role': self.title,
             'company': self.company,
             'start_date': self.start_date,
             'end_date': self.end_date,
@@ -55,122 +94,165 @@ class Experience(db.Model):
             'user_id': self.user_id
         }
 
-# ==============================================================================
-# 3. CERTIFICACIONES Y CURSOS
-# ==============================================================================
+
+# CERTIFICATIONS AND COURSES MODEL
 class Certification(db.Model):
     __tablename__ = 'certifications'
+
     id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign key referencing the user
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # Certification data
     title = db.Column(db.String(100), nullable=False)
     institution = db.Column(db.String(100), nullable=False)
     year = db.Column(db.String(10), nullable=False)
 
+    # Serialize certification data
     def to_dict(self):
         return {
-            'id': self.id, 
-            'title': self.title, 
-            'institution': self.institution, 
+            'id': self.id,
+            'title': self.title,
+            'institution': self.institution,
             'year': self.year,
             'user_id': self.user_id
         }
 
-# ==============================================================================
-# 4. SOLICITUDES DE TUTORÍA (FORMALIZACIÓN) - ¡MODIFICADO!
-# ==============================================================================
+
+# TUTOR REQUEST MODEL (FORMALIZATION PROCESS)
 class TutorRequest(db.Model):
     __tablename__ = 'tutor_requests'
+
     id = db.Column(db.Integer, primary_key=True)
+
+    # Student who submitted the request
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
     title = db.Column(db.String(100), nullable=True)
     filename = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.String(50), default='Pendiente')
-    memo_filename = db.Column(db.String(255), nullable=True)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # 👇 Datos del Tutor Asignado
-    assigned_tutor = db.Column(db.String(100), nullable=True)
-    # 👇 NUEVO CAMPO CORREO:
-    tutor_email = db.Column(db.String(150), nullable=True) 
 
+    # Request status (e.g., Pending, Approved, Rejected)
+    status = db.Column(db.String(50), default='Pendiente')
+
+    memo_filename = db.Column(db.String(255), nullable=True)
+
+    # Request creation date
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Assigned tutor information
+    assigned_tutor = db.Column(db.String(100), nullable=True)
+
+    # Tutor email address
+    tutor_email = db.Column(db.String(150), nullable=True)
+
+    # Serialize tutor request data
     def to_dict(self):
         return {
-            'id': self.id, 
-            'title': self.title, 
-            'filename': self.filename, 
-            'status': self.status, 
+            'id': self.id,
+            'title': self.title,
+            'filename': self.filename,
+            'status': self.status,
             'date': self.date.strftime('%Y-%m-%d'),
             'assigned_tutor': self.assigned_tutor,
-            'tutor_email': self.tutor_email, # <-- Agregado al diccionario
+            'tutor_email': self.tutor_email,
             'memo_filename': self.memo_filename
         }
 
-# ==============================================================================
-# 5. OPORTUNIDADES (OFERTAS)
-# ==============================================================================
+
+# OPPORTUNITIES MODEL (JOB / INTERNSHIP OFFERS)
 class Opportunity(db.Model):
     __tablename__ = 'opportunities'
+
     id = db.Column(db.Integer, primary_key=True)
+
+    # Opportunity details
     title = db.Column(db.String(100), nullable=False)
     company = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     location = db.Column(db.String(100), nullable=False)
     deadline = db.Column(db.String(20), nullable=False)
+
     vacancies = db.Column(db.Integer, default=1)
     type = db.Column(db.String(50), default='pasantia')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    applications = db.relationship('Application', backref='opportunity', lazy=True, cascade="all, delete-orphan")
 
+    # Creation timestamp
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Applications related to this opportunity
+    applications = db.relationship(
+        'Application',
+        backref='opportunity',
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
+    # Serialize opportunity data
     def to_dict(self):
         return {
-            'id': self.id, 
-            'title': self.title, 
-            'company': self.company, 
-            'description': self.description, 
-            'location': self.location, 
-            'deadline': self.deadline, 
-            'vacancies': self.vacancies, 
-            'type': self.type, 
+            'id': self.id,
+            'title': self.title,
+            'company': self.company,
+            'description': self.description,
+            'location': self.location,
+            'deadline': self.deadline,
+            'vacancies': self.vacancies,
+            'type': self.type,
             'created_at': self.created_at.strftime('%Y-%m-%d')
         }
 
-# ==============================================================================
-# 6. APLICACIONES (POSTULACIONES)
-# ==============================================================================
+
+# APPLICATION MODEL (STUDENT APPLICATIONS)
 class Application(db.Model):
     __tablename__ = 'applications'
+
     id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign keys
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'), nullable=False)
-    status = db.Column(db.String(20), default='Pendiente')
-    date = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con la cita (1 a 1)
-    appointment = db.relationship('Appointment', backref='application', uselist=False, cascade="all, delete-orphan")
 
+    # Application status
+    status = db.Column(db.String(20), default='Pendiente')
+
+    # Application date
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # One-to-one relationship with appointment
+    appointment = db.relationship(
+        'Appointment',
+        backref='application',
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+
+    # Serialize application data
     def to_dict(self):
         return {
-            'id': self.id, 
-            'student_id': self.student_id, 
-            'opportunity_id': self.opportunity_id, 
-            'status': self.status, 
+            'id': self.id,
+            'student_id': self.student_id,
+            'opportunity_id': self.opportunity_id,
+            'status': self.status,
             'date': self.date.strftime('%Y-%m-%d')
         }
 
-# ==============================================================================
-# 7. CITAS / ENTREVISTAS
-# ==============================================================================
+
+# APPOINTMENT / INTERVIEW MODEL
 class Appointment(db.Model):
     __tablename__ = 'appointments'
+
     id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign keys
     application_id = db.Column(db.Integer, db.ForeignKey('applications.id'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    
+
+    # Appointment details
     date = db.Column(db.String(20), nullable=False)
     time = db.Column(db.String(10), nullable=False)
     status = db.Column(db.String(20), default='Agendada')
 
+    # Serialize appointment data
     def to_dict(self):
         return {
             'id': self.id,
@@ -178,5 +260,9 @@ class Appointment(db.Model):
             'date': self.date,
             'time': self.time,
             'status': self.status,
-            'opportunity_title': self.application.opportunity.title if self.application and self.application.opportunity else 'Desconocido'
+            'opportunity_title': (
+                self.application.opportunity.title
+                if self.application and self.application.opportunity
+                else 'Desconocido'
+            )
         }

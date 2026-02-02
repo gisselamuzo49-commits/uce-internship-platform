@@ -1,12 +1,12 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
-from flask_migrate import Migrate  # <--- ESTO ES LO QUE FALTA
-from flask_mail import Mail        # <--- Y ESTO
-from flask_cors import CORS
+from flask_migrate import Migrate  # Database migration support
+from flask_mail import Mail        # Email service integration
+from flask_cors import CORS        # Cross-Origin Resource Sharing
 
-# Inicializamos las instancias
+# Extension instances (initialized later in create_app)
 db = SQLAlchemy()
 jwt = JWTManager()
-migrate = Migrate() # <--- IMPORTANTE
-mail = Mail()       # <--- IMPORTANTE
+migrate = Migrate()
+mail = Mail()
 cors = CORS()
