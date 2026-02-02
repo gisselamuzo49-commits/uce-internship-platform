@@ -4,49 +4,50 @@ from app.models import Opportunity, Application, User
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
+# Blueprint for opportunity-related routes
 opportunity_bp = Blueprint('opportunity', __name__)
 
-# ------------------------------------------------------------------
-# 1. RUTAS PÚBLICAS / GENERALES (Ver ofertas)
-# ------------------------------------------------------------------
+# ---------------- PUBLIC ROUTES (View opportunities) ----------------
 
 @opportunity_bp.route('/api/opportunities', methods=['GET'])
 def get_opportunities():
     try:
-        # Ordenar por fecha de creación descendente (las nuevas primero)
+        # Get all opportunities ordered by newest first
         opps = Opportunity.query.order_by(Opportunity.created_at.desc()).all()
         return jsonify([opp.to_dict() for opp in opps]), 200
     except Exception as e:
-        print(f"Error obteniendo oportunidades: {e}")
-        return jsonify({'error': 'Error interno del servidor'}), 500
+        print(f"Error fetching opportunities: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @opportunity_bp.route('/api/opportunities/<int:id>', methods=['GET'])
 def get_opportunity_detail(id):
+    # Get opportunity by ID
     opp = Opportunity.query.get(id)
     if not opp:
-        return jsonify({'error': 'Oportunidad no encontrada'}), 404
+        return jsonify({'error': 'Opportunity not found'}), 404
     return jsonify(opp.to_dict()), 200
 
-# ------------------------------------------------------------------
-# 2. RUTAS DE ESTUDIANTE (Postularse)
-# ------------------------------------------------------------------
+# ---------------- STUDENT ROUTES (Apply to opportunities) ----------------
 
 @opportunity_bp.route('/api/opportunities/<int:id>/apply', methods=['POST'])
 @jwt_required()
 def apply_opportunity(id):
-    user_id = int(get_jwt_identity())
+    user_id = int(get_jwt_identity())  # Authenticated student ID
     
-    # 1. Verificar si la oferta existe
+    # Check if opportunity exists
     opp = Opportunity.query.get(id)
     if not opp:
-        return jsonify({'error': 'Oportunidad no encontrada'}), 404
+        return jsonify({'error': 'Opportunity not found'}), 404
         
-    # 2. Verificar si ya se postuló
-    existing_app = Application.query.filter_by(student_id=user_id, opportunity_id=id).first()
+    # Prevent duplicate applications
+    existing_app = Application.query.filter_by(
+        student_id=user_id,
+        opportunity_id=id
+    ).first()
     if existing_app:
-        return jsonify({'error': 'Ya te has postulado a esta oferta'}), 400
+        return jsonify({'error': 'You already applied to this opportunity'}), 400
         
-    # 3. Crear postulación
+    # Create new application
     new_app = Application(
         student_id=user_id,
         opportunity_id=id,
@@ -57,19 +58,16 @@ def apply_opportunity(id):
     db.session.add(new_app)
     db.session.commit()
     
-    return jsonify({'message': 'Postulación exitosa'}), 201
+    return jsonify({'message': 'Application submitted successfully'}), 201
 
-# ------------------------------------------------------------------
-# 3. RUTAS DE ADMINISTRADOR (Gestión Completa)
-# ------------------------------------------------------------------
+# ---------------- ADMIN ROUTES (Full management) ----------------
 
-# A) CREAR NUEVA OFERTA
 @opportunity_bp.route('/api/opportunities', methods=['POST'])
 @jwt_required()
 def create_opportunity():
     data = request.json
     try:
-        # Convertir string de fecha a objeto fecha
+        # Parse deadline date
         deadline_date = datetime.strptime(data['deadline'], '%Y-%m-%d')
         
         new_opp = Opportunity(
@@ -79,43 +77,44 @@ def create_opportunity():
             location=data['location'],
             deadline=deadline_date,
             vacancies=int(data.get('vacancies', 1)),
-            type=data.get('type', 'pasantia') # 'pasantia' o 'vinculacion'
+            type=data.get('type', 'pasantia')  # internship or community service
         )
         
         db.session.add(new_opp)
         db.session.commit()
-        return jsonify({'message': 'Oportunidad creada con éxito', 'opportunity': new_opp.to_dict()}), 201
+        return jsonify({
+            'message': 'Opportunity created successfully',
+            'opportunity': new_opp.to_dict()
+        }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-# B) BORRAR OFERTA (Y sus postulaciones en cascada)
 @opportunity_bp.route('/api/opportunities/<int:id>', methods=['DELETE'])
 @jwt_required()
 def delete_opportunity(id):
-    # Verificación opcional de rol admin
+    # Admin role verification
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     if user.role != 'admin':
-        return jsonify({'error': 'No autorizado'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
 
     opp = Opportunity.query.get(id)
     if not opp:
-        return jsonify({'error': 'Oportunidad no encontrada'}), 404
+        return jsonify({'error': 'Opportunity not found'}), 404
         
     db.session.delete(opp)
     db.session.commit()
-    return jsonify({'message': 'Oportunidad eliminada correctamente'}), 200
+    return jsonify({'message': 'Opportunity deleted successfully'}), 200
 
-# C) VER POSTULANTES DE UNA OFERTA ESPECÍFICA (Para el Modal del Dashboard)
 @opportunity_bp.route('/api/opportunities/<int:id>/applications', methods=['GET'])
 @jwt_required()
 def get_opportunity_applicants(id):
-    # Verificar oferta
+    # Check opportunity existence
     opp = Opportunity.query.get(id)
     if not opp:
-        return jsonify({'error': 'Oferta no encontrada'}), 404
+        return jsonify({'error': 'Opportunity not found'}), 404
         
-    # Obtener postulaciones de esta oferta
+    # Fetch applications for this opportunity
     apps = Application.query.filter_by(opportunity_id=id).all()
     
     results = []
@@ -123,8 +122,8 @@ def get_opportunity_applicants(id):
         student = User.query.get(app.student_id)
         if student:
             results.append({
-                'id': app.id,               # ID de la postulación (para aprobar/rechazar)
-                'student_id': student.id,   # ID del estudiante (para descargar CV)
+                'id': app.id,
+                'student_id': student.id,
                 'student_name': student.name,
                 'student_email': student.email,
                 'status': app.status,
@@ -133,18 +132,17 @@ def get_opportunity_applicants(id):
             
     return jsonify(results), 200
 
-# D) CAMBIAR ESTADO DE POSTULACIÓN (Aprobar / Rechazar)
 @opportunity_bp.route('/api/applications/<int:id>/status', methods=['PUT'])
 @jwt_required()
 def update_application_status(id):
     data = request.json
-    new_status = data.get('status') # Esperamos 'Aprobado' o 'Rechazado'
+    new_status = data.get('status')  # Expected: Approved or Rejected
     
     app = Application.query.get(id)
     if not app:
-        return jsonify({'error': 'Postulación no encontrada'}), 404
+        return jsonify({'error': 'Application not found'}), 404
         
     app.status = new_status
     db.session.commit()
     
-    return jsonify({'message': f'Estado actualizado a {new_status}'}), 200
+    return jsonify({'message': f'Status updated to {new_status}'}), 200

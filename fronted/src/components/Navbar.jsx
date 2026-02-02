@@ -9,8 +9,8 @@ import {
   LogOut,
   HeartHandshake,
   GraduationCap,
-  Users, // Icono para Solicitudes (Gestión)
-  UserCheck, // Icono para Postulantes (Reporte Excel)
+  Users,
+  UserCheck,
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -33,11 +33,14 @@ const Navbar = () => {
           // 1. GESTIÓN (Aprobar/Rechazar/Ver CV)
           { name: 'Solicitudes', path: '/admin/solicitudes', icon: Users },
 
-          // 2. REPORTE (Excel/Calendario) - ¡NUEVO!
+          // 2. REPORTE (Excel/Calendario)
           { name: 'Postulantes', path: '/admin/postulantes', icon: UserCheck },
 
           // 3. OFERTAS (Crear/Editar/Borrar)
           { name: 'Ofertas', path: '/admin/ofertas', icon: Briefcase },
+
+          // 👇 4. ¡AQUÍ ESTÁ LA LÍNEA QUE FALTABA!
+          { name: 'Mi Perfil', path: '/perfil', icon: User },
         ]
       : [
           // Links de Estudiante

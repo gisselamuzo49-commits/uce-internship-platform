@@ -5,28 +5,30 @@ from config import Config
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(Config)  # Load configuration settings
 
-    # 1. INICIALIZAR EXTENSIONES
+    # Initialize Flask extensions
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
-    mail.init_app(app) # <--- Aquí se conecta Flask-Mail con tu Config
+    mail.init_app(app)  # Connect Flask-Mail with Config
     
-    # Diagnóstico visual en consola
-    print(f"📧 Sistema de Correo Iniciado con: {app.config['MAIL_USERNAME']}", flush=True)
+    # Console check for mail configuration
+    print(f"📧 Mail system initialized with: {app.config['MAIL_USERNAME']}", flush=True)
 
-    # Configuración CORS
-    CORS(app, 
-         resources={r"/*": {"origins": "*"}}, 
-         supports_credentials=True,
-         allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"])
+    # Enable CORS for frontend integration
+    CORS(
+        app,
+        resources={r"/*": {"origins": "*"}},
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"]
+    )
 
-    # 2. REGISTRAR BLUEPRINTS
+    # Register application blueprints
     from app.routes.auth_routes import auth_bp
     app.register_blueprint(auth_bp)
 
-    from app.routes.opportunity_routes import opportunity_bp 
+    from app.routes.opportunity_routes import opportunity_bp
     app.register_blueprint(opportunity_bp)
 
     from app.routes.student_routes import student_bp
