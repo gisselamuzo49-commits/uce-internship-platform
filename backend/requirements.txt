@@ -20,3 +20,4 @@ google-auth-httplib2==0.1.1
 
 # --- CORREOS ---
 Flask-Mail==0.9.1
+boto3

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Notification from '../components/Notification';
+// Centralized API URL import
+import { API_URL } from '../config/api';
 
 const NewOpportunity = () => {
   const { authFetch } = useAuth();
@@ -32,7 +34,7 @@ const NewOpportunity = () => {
     const payload = { ...data, vacancies: parseInt(data.vacancies) };
 
     try {
-      const res = await authFetch('http://localhost:5001/api/opportunities', {
+      const res = await authFetch(`${API_URL}/api/opportunities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -71,7 +73,7 @@ const NewOpportunity = () => {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
-          {/* SELECTOR DE TIPO */}
+          {/* Opportunity type selection */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
               Tipo de Oferta

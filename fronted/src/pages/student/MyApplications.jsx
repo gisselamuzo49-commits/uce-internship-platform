@@ -12,12 +12,14 @@ import {
   Loader,
   Search,
 } from 'lucide-react';
+// Centralized API URL import
+import { API_URL } from '../../config/api';
 
 const MyApplications = () => {
   const { authFetch } = useAuth();
   const navigate = useNavigate();
 
-  // --- 1. CARGA DE DATOS ---
+  // Fetch student applications
   const {
     data: applications = [],
     isLoading,
@@ -26,26 +28,22 @@ const MyApplications = () => {
   } = useQuery({
     queryKey: ['my-applications'],
     queryFn: async () => {
-      // Usa la variable de entorno o localhost por defecto
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
-      // Petición al backend
-      const res = await authFetch(`${baseUrl}/api/student/my-applications`);
+      const res = await authFetch(`${API_URL}/api/student/my-applications`);
 
       if (!res.ok) {
         throw new Error('Error al obtener tus postulaciones');
       }
 
       const data = await res.json();
-      console.log('📦 Postulaciones recibidas:', data); // <--- MIRA ESTO EN CONSOLA (F12)
+      console.log('📦 Postulaciones recibidas:', data);
       return data;
     },
     refetchOnWindowFocus: true,
   });
 
-  // --- 2. HELPERS VISUALES ---
+  // Get status badge component
   const getStatusBadge = (status) => {
-    // Normalizamos a minúsculas para evitar errores (Ej: "Aprobado" vs "aprobado")
+    // Normalize status to lowercase
     const lowerStatus = status?.toLowerCase() || 'pendiente';
 
     if (lowerStatus === 'aprobado' || lowerStatus === 'aceptado') {
@@ -69,8 +67,7 @@ const MyApplications = () => {
     }
   };
 
-  // --- 3. RENDERIZADO ---
-
+  // Display loading state
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -101,7 +98,7 @@ const MyApplications = () => {
 
   return (
     <div className="max-w-5xl mx-auto p-6 md:p-10 min-h-screen">
-      {/* HEADER */}
+      {/* Page header */}
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-100 pb-6">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">
@@ -112,14 +109,14 @@ const MyApplications = () => {
           </p>
         </div>
         <button
-          onClick={() => navigate('/practicas')} // Ajusta esta ruta si se llama '/ofertas'
+          onClick={() => navigate('/practicas')}
           className="bg-slate-900 text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition shadow-lg shadow-slate-200 flex items-center gap-2"
         >
           <Search size={18} /> Buscar más ofertas
         </button>
       </div>
 
-      {/* CONTENIDO */}
+      {/* Applications list */}
       {applications.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-16 text-center flex flex-col items-center">
           <div className="bg-slate-50 p-6 rounded-full mb-4">
@@ -146,7 +143,7 @@ const MyApplications = () => {
               key={app.id || index}
               className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 relative overflow-hidden"
             >
-              {/* Barra lateral de color según estado */}
+              {/* Status color indicator */}
               <div
                 className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors ${
                   app.status?.toLowerCase() === 'aprobado'
@@ -159,19 +156,18 @@ const MyApplications = () => {
 
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pl-4">
                 <div className="flex-1">
-                  {/* Badge de Estado y Fecha */}
+                  {/* Status badge */}
                   <div className="flex items-center gap-3 mb-3">
                     {getStatusBadge(app.status)}
                     <span className="text-xs text-slate-400 font-bold uppercase flex items-center gap-1">
                       <Calendar size={12} />
-                      {/* Intenta leer 'date' o 'fecha_postulacion' o muestra la de hoy */}
                       {app.date ||
                         app.fecha_postulacion ||
                         new Date().toLocaleDateString()}
                     </span>
                   </div>
 
-                  {/* Título (Con fallback por si el nombre varía en BD) */}
+                  {/* Opportunity title */}
                   <h3 className="text-xl font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
                     {app.opportunity_title ||
                       app.titulo ||
@@ -179,14 +175,13 @@ const MyApplications = () => {
                       'Cargo no especificado'}
                   </h3>
 
-                  {/* Detalles (Empresa y Tipo) */}
+                  {/* Company and type details */}
                   <div className="flex flex-wrap gap-4 text-sm text-slate-500 font-medium mt-2">
                     <span className="flex items-center gap-1.5">
                       <Building size={16} className="text-slate-400" />{' '}
                       {app.company || app.empresa || 'Empresa confidencial'}
                     </span>
 
-                    {/* Renderiza el tipo solo si existe */}
                     {(app.type || app.tipo) && (
                       <span className="flex items-center gap-1 uppercase text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 tracking-wider">
                         {app.type || app.tipo}

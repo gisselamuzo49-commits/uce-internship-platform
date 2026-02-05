@@ -10,11 +10,14 @@ import {
   CheckCircle,
 } from 'lucide-react';
 
+// Centralized API URL import
+import { API_URL } from '../../config/api';
+
 const Opportunities = ({ type }) => {
   const { authFetch } = useAuth();
-  const queryClient = useQueryClient(); // Para actualizar datos automáticamente
+  const queryClient = useQueryClient();
 
-  // 1. CARGAR OPORTUNIDADES
+  // Fetch opportunities
   const {
     data: opportunities = [],
     isLoading,
@@ -22,16 +25,16 @@ const Opportunities = ({ type }) => {
   } = useQuery({
     queryKey: ['opportunities'],
     queryFn: async () => {
-      const res = await authFetch('http://localhost:5001/api/opportunities');
+      const res = await authFetch(`${API_URL}/api/opportunities`);
       if (!res.ok) throw new Error('Error al cargar');
       return res.json();
     },
   });
 
-  // 2. MUTACIÓN PARA POSTULAR (La forma segura de enviar datos)
+  // Apply to opportunity mutation
   const mutation = useMutation({
     mutationFn: async (oppId) => {
-      const res = await authFetch('http://localhost:5001/api/applications', {
+      const res = await authFetch(`${API_URL}/api/applications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ opportunity_id: oppId }),
@@ -43,7 +46,6 @@ const Opportunities = ({ type }) => {
     },
     onSuccess: () => {
       alert("✅ ¡Postulación enviada con éxito! Revisa 'Mis Postulaciones'.");
-      // Opcional: Recargar las postulaciones en segundo plano
       queryClient.invalidateQueries(['my-applications']);
     },
     onError: (error) => {
@@ -59,12 +61,11 @@ const Opportunities = ({ type }) => {
     mutation.mutate(id);
   };
 
-  // --- FILTRADO ---
-  // El backend devuelve "pasantia" (sin tilde) o "vinculacion"
+  // Filter opportunities by type
   const filterType = type === 'pasantia' ? 'pasantia' : 'vinculacion';
   const filteredOpps = opportunities.filter((op) => op.type === filterType);
 
-  // --- TEXTOS ---
+  // Set page title and styling based on type
   const pageTitle =
     type === 'pasantia'
       ? 'Prácticas Pre-Profesionales'
@@ -144,7 +145,6 @@ const Opportunities = ({ type }) => {
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
-                  {/* Botón Postular */}
                   <button
                     onClick={() => handleApply(op.id)}
                     disabled={mutation.isPending}

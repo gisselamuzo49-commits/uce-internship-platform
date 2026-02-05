@@ -2,7 +2,7 @@ import React from 'react';
 import { Briefcase, Plus, Trash2 } from 'lucide-react';
 
 const ExperienceList = ({ form, onSubmit, loading, experiences, onDelete }) => {
-  // Extraemos las herramientas del formulario que nos pasa el padre
+  // Extract form tools from parent component
   const { register, handleSubmit } = form;
 
   return (
@@ -12,7 +12,7 @@ const ExperienceList = ({ form, onSubmit, loading, experiences, onDelete }) => {
       </h2>
 
       <div className="grid md:grid-cols-2 gap-8">
-        {/* COLUMNA IZQUIERDA: FORMULARIO */}
+        {/* Form section */}
         <div className="bg-purple-50 p-6 rounded-xl border border-purple-100 h-fit">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
             <input
@@ -71,7 +71,7 @@ const ExperienceList = ({ form, onSubmit, loading, experiences, onDelete }) => {
           </form>
         </div>
 
-        {/* COLUMNA DERECHA: LISTA */}
+        {/* List section */}
         <div>
           <h3 className="font-bold text-slate-700 mb-4 text-sm uppercase">
             Mis Experiencias

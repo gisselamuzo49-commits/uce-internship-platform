@@ -6,12 +6,12 @@ import StudentDashboard from './StudentDashboard';
 const Dashboard = () => {
   const { user } = useAuth();
 
-  // Si es admin, mostramos el panel de admin
+  // Display admin dashboard if user is admin
   if (user?.role === 'admin') {
     return <AdminDashboard />;
   }
 
-  // Si no, mostramos el del estudiante
+  // Display student dashboard
   return <StudentDashboard />;
 };
 

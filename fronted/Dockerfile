@@ -3,15 +3,15 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Copiar dependencias e instalar
+# Install dependencies
 COPY package.json .
 RUN npm install
 
-# Copiar el código fuente
+# Copy source code
 COPY . .
 
-# Exponer el puerto de Vite
+# Expose Vite development server port
 EXPOSE 5173
 
-# Ejecutar en modo desarrollo visible para la red
+# Start development server accessible from network
 CMD ["npm", "run", "dev", "--", "--host"]

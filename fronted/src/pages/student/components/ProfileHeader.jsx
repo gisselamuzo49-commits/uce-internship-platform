@@ -4,7 +4,7 @@ import { User, Mail, Edit } from 'lucide-react';
 const ProfileHeader = ({ user, isStudent, onEdit }) => {
   return (
     <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-      {/* 1. FONDO CON DEGRADADO (Aquí estaba lo que faltaba) */}
+      {/* Background gradient header */}
       <div
         className={`h-32 relative bg-gradient-to-r ${
           isStudent
@@ -12,14 +12,14 @@ const ProfileHeader = ({ user, isStudent, onEdit }) => {
             : 'from-slate-800 to-slate-900'
         }`}
       >
-        {/* Círculo de la foto de perfil */}
+        {/* Profile picture circle */}
         <div className="absolute -bottom-12 left-8 p-1 bg-white rounded-full">
           <div className="h-24 w-24 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 border-4 border-white">
             <User size={40} />
           </div>
         </div>
 
-        {/* Botón de Editar (Solo visible si es estudiante) */}
+        {/* Edit button (visible only for students) */}
         {isStudent && (
           <button
             onClick={onEdit}
@@ -30,14 +30,14 @@ const ProfileHeader = ({ user, isStudent, onEdit }) => {
         )}
       </div>
 
-      {/* 2. DATOS DEL USUARIO (Debajo del banner) */}
+      {/* User information section */}
       <div className="pt-16 pb-8 px-8">
         <h1 className="text-3xl font-black text-slate-800">{user.name}</h1>
         <p className="text-slate-500 font-medium flex items-center gap-2">
           <Mail size={14} /> {user.email}
         </p>
 
-        {/* Etiqueta de Rol (Estudiante vs Admin) */}
+        {/* Role badge */}
         <span
           className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
             isStudent

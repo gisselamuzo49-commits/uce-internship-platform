@@ -1,208 +1,91 @@
+import boto3
+import os
 import smtplib
+import threading
+from werkzeug.utils import secure_filename
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from config import Config
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-import io
-import textwrap
-import datetime
+from botocore.client import Config as BotoConfig
 
+# Cloudflare R2 file storage service
+def get_r2_client():
+    return boto3.client(
+        's3',
+        endpoint_url=os.environ.get('R2_ENDPOINT_URL'),
+        aws_access_key_id=os.environ.get('R2_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('R2_SECRET_ACCESS_KEY'),
+        config=BotoConfig(signature_version='s3v4')
+    )
 
-# EMAIL SERVICES (SMTP)
+def upload_file_to_r2(file_obj, folder="uploads"):
+    try:
+        if not file_obj: return None
+        filename = secure_filename(file_obj.filename)
+        object_name = f"{folder}/{filename}"
+        print(f"☁️ Subiendo {filename} a R2 ({folder})...", flush=True)
+        
+        s3 = get_r2_client()
+        bucket_name = os.environ.get('R2_BUCKET_NAME', 'uce-uploads')
+        
+        s3.upload_fileobj(
+            file_obj, bucket_name, object_name,
+            ExtraArgs={'ContentType': file_obj.content_type}
+        )
+        print(f"✅ Archivo subido exitosamente: {object_name}", flush=True)
+        return object_name
+    except Exception as e:
+        print(f"❌ Error critico subiendo a R2: {str(e)}", flush=True)
+        return None
+
+def get_file_from_r2(filename):
+    try:
+        s3 = get_r2_client()
+        bucket_name = os.environ.get('R2_BUCKET_NAME', 'uce-uploads')
+        file_obj = s3.get_object(Bucket=bucket_name, Key=filename)
+        return file_obj
+    except Exception as e:
+        print(f"❌ Error descargando de R2: {str(e)}", flush=True)
+        return None
+
+# Email service (SMTP)
+def _send_email_thread(to_email, subject, body):
+    try:
+        print(f"📧 Intentando enviar correo a {to_email}...", flush=True)
+        msg = MIMEMultipart()
+        msg['From'] = Config.SMTP_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        server = smtplib.SMTP(Config.MAIL_SERVER, Config.MAIL_PORT, timeout=60)
+        server.starttls()
+        server.login(Config.SMTP_EMAIL, Config.SMTP_PASSWORD)
+        server.sendmail(Config.SMTP_EMAIL, to_email, msg.as_string())
+        server.quit()
+        print(f"✅ Correo enviado a {to_email}", flush=True)
+    except Exception as e:
+        print(f"❌ Error enviando correo: {str(e)}", flush=True)
 
 def send_email_confirmation(to_email, student_name, company, date, time):
-    """Sends interview/appointment confirmation email."""
-    print(f"🚀 Enviando confirmación de cita a: {to_email}...", flush=True)
+    subject = "Cita Agendada - Plataforma UCE"
+    body = f"Hola {student_name},\n\nTu cita con {company} ha sido confirmada para el {date} a las {time}.\n\nExitos!"
+    threading.Thread(target=_send_email_thread, args=(to_email, subject, body)).start()
+    return True
 
-    try:
-        # Create multipart email message
-        msg = MIMEMultipart()
-        msg['From'] = Config.SMTP_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = "Confirmación de Entrevista - SIIU Conecta"
+def send_welcome_email(to_email, username):
+    subject = "Bienvenido a la Plataforma de Pasantias UCE"
+    body = f"""
+    Hola {username},
 
-        # Email body (user-facing content in Spanish)
-        body = f"""
-        Hola {student_name},
+    Gracias por registrarte en la Plataforma de Gestion de Pasantias de la UCE.
+    Tu cuenta ha sido creada exitosamente.
 
-        Tu entrevista ha sido agendada exitosamente.
+    Ya puedes iniciar sesion y completar tu perfil.
 
-        Empresa: {company}
-        Fecha: {date}
-        Hora: {time}
-
-        Por favor, sé puntual y prepárate para tu entrevista.
-
-        Atentamente,
-        Sistema SIIU UCE
-        """
-        msg.attach(MIMEText(body, 'plain'))
-
-        # Secure SMTP connection using TLS
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-        server.starttls()
-        server.login(Config.SMTP_EMAIL, Config.SMTP_PASSWORD)
-        server.sendmail(Config.SMTP_EMAIL, to_email, msg.as_string())
-        server.quit()
-
-        print("✅ Correo de cita enviado.", flush=True)
-        return True
-
-    except Exception as e:
-        print(f"❌ Error enviando correo cita: {e}", flush=True)
-        return False
-
-
-def send_welcome_email(to_email, student_name):
-    """Sends welcome email after user registration."""
-    print(f"🚀 Enviando bienvenida a: {to_email}...", flush=True)
-
-    try:
-        # Create multipart email message
-        msg = MIMEMultipart()
-        msg['From'] = Config.SMTP_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = "¡Bienvenido a SIIU Conecta!"
-
-        # Email body (user-facing content in Spanish)
-        body = f"""
-        Hola {student_name},
-
-        ¡Tu cuenta ha sido creada exitosamente!
-
-        Bienvenido a la Plataforma de Gestión de Pasantías / Vinculación con la Sociedad de la UCE.
-        Ahora puedes:
-        1. Completar tu perfil (Experiencia y Cursos).
-        2. Subir tu solicitud de tutor.
-        3. Postular a ofertas exclusivas.
-
-        Atentamente,
-        Coordinación de Vinculación con la Sociedad.
-        """
-        msg.attach(MIMEText(body, 'plain'))
-
-        # Secure SMTP connection
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-        server.starttls()
-        server.login(Config.SMTP_EMAIL, Config.SMTP_PASSWORD)
-        server.sendmail(Config.SMTP_EMAIL, to_email, msg.as_string())
-        server.quit()
-
-        print("✅ Correo de bienvenida enviado.", flush=True)
-        return True
-
-    except Exception as e:
-        print(f"❌ Error enviando bienvenida: {e}", flush=True)
-        return False
-
-
-# PDF SERVICES (ReportLab)
-
-def generate_student_cv_pdf(user, tutor_req):
-    """Generates the student's CV in PDF format."""
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-
-    # Header section
-    p.setFont("Helvetica-Bold", 20)
-    p.drawString(50, 750, user.name)
-    p.setFont("Helvetica", 12)
-    p.setFillColorRGB(0.4, 0.4, 0.4)
-    p.drawString(50, 735, "Estudiante / Candidato")
-    p.setFillColorRGB(0, 0, 0)
-    p.drawString(50, 715, f"Email: {user.email}")
-    p.setLineWidth(1)
-    p.line(50, 700, 550, 700)
-
-    y = 670
-
-    # Work experience section
-    p.setFont("Helvetica-Bold", 14)
-    p.setFillColorRGB(0, 0, 0.5)
-    p.drawString(50, y, "EXPERIENCIA LABORAL")
-    p.setFillColorRGB(0, 0, 0)
-    y -= 25
-
-    if user.experiences:
-        for exp in user.experiences:
-            p.setFont("Helvetica-Bold", 12)
-            p.drawString(60, y, f"{exp.role}")
-            p.setFont("Helvetica-Oblique", 11)
-            p.drawString(60, y - 15, f"{exp.company} | {exp.start_date} - {exp.end_date}")
-
-            p.setFont("Helvetica", 10)
-            # Handle long descriptions
-            if exp.description:
-                desc_lines = exp.description.split('\n')
-                current_y = y - 30
-                for line in desc_lines:
-                    if len(line) > 90:
-                        line = line[:90] + "..."
-                    p.drawString(70, current_y, f"• {line}")
-                    current_y -= 12
-                y = current_y - 20
-            else:
-                y -= 35
-
-            # Page break handling
-            if y < 100:
-                p.showPage()
-                y = 750
-    else:
-        p.setFont("Helvetica-Oblique", 10)
-        p.drawString(60, y, "Sin experiencia laboral registrada.")
-        y -= 30
-
-    # Education and courses section
-    y -= 20
-    if y < 100:
-        p.showPage()
-        y = 750
-
-    p.setFont("Helvetica-Bold", 14)
-    p.setFillColorRGB(0, 0, 0.5)
-    p.drawString(50, y, "FORMACIÓN ACADÉMICA Y CURSOS")
-    p.setFillColorRGB(0, 0, 0)
-    y -= 25
-
-    p.setFont("Helvetica", 11)
-    if user.certifications:
-        for cert in user.certifications:
-            p.drawString(60, y, f"• {cert.title}")
-            p.setFont("Helvetica-Oblique", 10)
-            p.drawString(75, y - 12, f"{cert.institution} | {cert.year}")
-            p.setFont("Helvetica", 11)
-            y -= 30
-            if y < 100:
-                p.showPage()
-                y = 750
-    else:
-        p.drawString(60, y, "Sin cursos registrados.")
-        y -= 20
-
-    # Internship status section
-    y -= 30
-    if y < 100:
-        p.showPage()
-        y = 750
-
-    p.setFont("Helvetica-Bold", 14)
-    p.setFillColorRGB(0, 0, 0.5)
-    p.drawString(50, y, "ESTADO DE PRÁCTICAS")
-    p.setFillColorRGB(0, 0, 0)
-    y -= 25
-    p.setFont("Helvetica", 11)
-
-    if tutor_req and tutor_req.status == 'Aprobado':
-        p.drawString(60, y, "Estado: APROBADO")
-        p.drawString(60, y - 15, f"Tutor Académico Asignado: {tutor_req.tutor_name}")
-    else:
-        p.drawString(60, y, "Estado: Pendiente de asignación o no iniciado.")
-
-    p.drawString(50, 50, "Generado automáticamente por SIIU Conecta")
-
-    p.showPage()
-    p.save()
-    buffer.seek(0)
-    return buffer
+    Saludos,
+    Equipo de Vinculacion UCE
+    """
+    threading.Thread(target=_send_email_thread, args=(to_email, subject, body)).start()
+    return True

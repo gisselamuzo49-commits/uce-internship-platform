@@ -1,26 +1,22 @@
 import os
-from datetime import timedelta
-
-basedir = os.path.abspath(os.path.dirname(__file__))  # Base directory of the project
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = 'postgresql://uce_user:uce_password@postgres_db:5432/uce_db'  # Database connection
-    SQLALCHEMY_TRACK_MODIFICATIONS = False  # Disable SQLAlchemy event system
+    # Secret key for session management
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev_key_12345'
 
-    JWT_SECRET_KEY = 'super-secret-key-uce'  # JWT signing key
-    UPLOAD_FOLDER = os.path.join(basedir, 'uploads')  # File upload directory
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)  # Token expiration time
+    # Database configuration (PostgreSQL)
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'postgresql://uce_user:uce_password@uce_postgres:5432/uce_db'
+    
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    MAIL_SERVER = 'smtp.gmail.com'  # Gmail SMTP server
-    MAIL_PORT = 587  # TLS port
-    MAIL_USE_TLS = True  # Enable TLS
-    MAIL_USE_SSL = False  # Disable SSL (not used with port 587)
-    MAIL_DEBUG = True  # Enable mail debug logs
+    # Email configuration (SMTP)
+    SMTP_EMAIL = 'siiuconecta@gmail.com'
+    SMTP_PASSWORD = 'ypwkfoaeptqxjmpn'
+    
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
+    MAIL_USE_TLS = True
 
-    MAIL_USERNAME = "siiuconecta@gmail.com"  # SMTP username
-    MAIL_PASSWORD = "ypwkfoaeptqxjmpn"  # SMTP app password
-
-    MAIL_DEFAULT_SENDER = ("SIIU Conecta", "siiuconecta@gmail.com")  # Default sender
-
-    SMTP_EMAIL = MAIL_USERNAME  # Compatibility alias
-    SMTP_PASSWORD = MAIL_PASSWORD  # Compatibility alias
+    # Upload folder path (inside Docker container)
+    UPLOAD_FOLDER = '/app/uploads'

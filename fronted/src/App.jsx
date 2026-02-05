@@ -8,24 +8,24 @@ import {
 } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
-// --- COMPONENTES GLOBALES ---
+// Global components
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-// --- PÁGINAS DE ESTUDIANTE ---
+// Student pages
 import UserProfile from './pages/student/Profile';
 import Opportunities from './pages/student/Opportunities';
 import MyApplications from './pages/student/MyApplications';
 import StudentDashboard from './pages/student/StudentDashboard';
 
-// --- PÁGINAS DE ADMIN ---
+// Admin pages
 import AdminDashboard from './pages/panel_control/AdminDashboard';
-import AdminRequests from './pages/panel_control/AdminRequests'; // La tabla de aprobaciones y CVs
-import AdminOpportunities from './pages/panel_control/AdminOpportunities'; // Editar/Borrar Ofertas
-import Postulantes from './pages/panel_control/Postulantes'; // El reporte Excel (Nuevo)
+import AdminRequests from './pages/panel_control/AdminRequests';
+import AdminOpportunities from './pages/panel_control/AdminOpportunities';
+import Postulantes from './pages/panel_control/Postulantes';
 
-// 1. REDIRECCIÓN INTELIGENTE
+// Redirect to appropriate dashboard based on user role
 const DashboardRedirect = () => {
   const { user, loading } = useAuth();
   if (loading)
@@ -42,7 +42,7 @@ const DashboardRedirect = () => {
   return <Navigate to="/login" />;
 };
 
-// 2. PROTECCIÓN DE RUTAS
+// Protected route wrapper to enforce role-based access
 const ProtectedRoute = ({ children, role }) => {
   const { user, loading } = useAuth();
   if (loading)
@@ -59,7 +59,7 @@ const ProtectedRoute = ({ children, role }) => {
   return children;
 };
 
-// 3. LAYOUT (Maneja el Sidebar y el margen)
+// Main layout component with conditional sidebar
 const Layout = ({ children }) => {
   const location = useLocation();
   const hideSidebar = ['/login', '/register', '/'].includes(location.pathname);
@@ -68,7 +68,7 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {!hideSidebar && <Navbar />}
 
-      {/* 'ml-64' empuja el contenido a la derecha cuando está el sidebar */}
+      {/* Sidebar margin pushes content to the right */}
       <main
         className={`relative transition-all duration-300 ${!hideSidebar ? 'ml-64' : 'ml-0'}`}
       >
@@ -78,22 +78,22 @@ const Layout = ({ children }) => {
   );
 };
 
-// 4. APP PRINCIPAL
+// Main application component
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Layout>
           <Routes>
-            {/* Rutas Públicas */}
+            {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/" element={<Navigate to="/login" />} />
 
-            {/* Dashboard Inteligente */}
+            {/* Smart dashboard redirects based on user role */}
             <Route path="/dashboard" element={<DashboardRedirect />} />
 
-            {/* --- RUTAS ESTUDIANTE --- */}
+            {/* Student routes */}
             <Route
               path="/practicas"
               element={
@@ -130,9 +130,9 @@ function App() {
               }
             />
 
-            {/* --- RUTAS ADMINISTRADOR --- */}
+            {/* Admin routes */}
 
-            {/* 1. Solicitudes (Aprobar, Rechazar, Ver CV) */}
+            {/* Applications and tutor requests management */}
             <Route
               path="/admin/solicitudes"
               element={
@@ -142,7 +142,7 @@ function App() {
               }
             />
 
-            {/* 2. Postulantes (Reporte Excel) - ¡NUEVA! */}
+            {/* Approved applicants Excel report */}
             <Route
               path="/admin/postulantes"
               element={
@@ -152,7 +152,7 @@ function App() {
               }
             />
 
-            {/* 3. Ofertas (Gestión) */}
+            {/* Opportunities management */}
             <Route
               path="/admin/ofertas"
               element={
