@@ -14,12 +14,12 @@ services:
       - R2_BUCKET_NAME=uce-uploads
       - R2_ENDPOINT_URL=https://7f6607d99e7358a8dffb8282e5082fe6.r2.cloudflarestorage.com
       - R2_ACCESS_KEY_ID=de89fc678e686df9ab75e2adb090e867
-      - R2_SECRET_ACCESS_KEY=1089c5b701a27f88dc04045bfb68db1224fc5f0d684d9361660d1373503b8772
+      - R2_SECRET_ACCESS_KEY=1089c5b701a27f88dc04045bfb68db1224fc5f0d684d931dd4a271689af1356c
 
     command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 2 --timeout 120 main:app
 
   frontend:
-    image: gdmuzo/uce-frontend:v1
+    image: gdmuzo/uce-frontend:v2
     container_name: uce_frontend
     ports:
       - "5173:5173"
