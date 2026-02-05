@@ -10,12 +10,14 @@ import TabNavigation from './components/TabNavigation';
 import ApplicationsTable from './components/ApplicationsTable';
 import TutorRequestsTable from './components/TutorRequestsTable';
 import StudentProfileModal from './components/StudentProfileModal';
+import TutorAssignmentModal from './components/TutorAssignmentModal';
+import ConfirmModal from './components/ConfirmModal';
 
 const AdminRequests = () => {
   const { data, loading, error, state, actions } = useAdminRequests();
 
   const { filteredApps, filteredTutor, fullProfile, basicStudentInfo } = data;
-  const { isLoading, loadingProfile } = loading;
+  const { isLoading, loadingProfile, isUpdating } = loading;
   const { isError } = error;
   const {
     activeTab,
@@ -32,7 +34,13 @@ const AdminRequests = () => {
     handleCloseProfile,
     handleFileChange,
     generateStudentCV,
+    confirmStatusChange,
+    handleTutorSubmit,
+    setIsTutorModalOpen,
+    setIsConfirmModalOpen,
   } = actions;
+
+  const { isTutorModalOpen, isConfirmModalOpen, confirmData } = state;
 
   // Display loading state
   if (isLoading) {
@@ -114,6 +122,23 @@ const AdminRequests = () => {
         loadingProfile={loadingProfile}
         handleCloseProfile={handleCloseProfile}
         generateStudentCV={generateStudentCV}
+      />
+
+      {/* Modern Dialogs */}
+      <TutorAssignmentModal
+        isOpen={isTutorModalOpen}
+        onConfirm={handleTutorSubmit}
+        onCancel={() => setIsTutorModalOpen(false)}
+        isLoading={isUpdating}
+      />
+
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        title="Confirmar Cambio de Estado"
+        message={`¿Estás seguro de que deseas cambiar el estado a "${confirmData?.status}"?`}
+        onConfirm={confirmStatusChange}
+        onCancel={() => setIsConfirmModalOpen(false)}
+        isLoading={isUpdating}
       />
     </div>
   );

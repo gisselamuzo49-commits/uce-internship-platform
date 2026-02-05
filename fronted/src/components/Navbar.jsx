@@ -28,27 +28,27 @@ const Navbar = () => {
   const links =
     user?.role === 'admin'
       ? [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          // Requests management (approve/reject/view CV)
-          { name: 'Solicitudes', path: '/admin/solicitudes', icon: Users },
-          // Reports (Excel/Calendar)
-          { name: 'Postulantes', path: '/admin/postulantes', icon: UserCheck },
-          // Opportunities management (create/edit/delete)
-          { name: 'Ofertas', path: '/admin/ofertas', icon: Briefcase },
-          { name: 'Mi Perfil', path: '/perfil', icon: User },
-        ]
+        { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        // Requests management (approve/reject/view CV)
+        { name: 'Solicitudes', path: '/admin/solicitudes', icon: Users },
+        // Reports (Excel/Calendar)
+        { name: 'Reporte Aprobados', path: '/admin/postulantes', icon: UserCheck },
+        // Opportunities management (create/edit/delete)
+        { name: 'Ofertas', path: '/admin/ofertas', icon: Briefcase },
+        { name: 'Mi Perfil', path: '/perfil', icon: User },
+      ]
       : [
-          // Student navigation links
-          { name: 'Inicio', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Prácticas', path: '/practicas', icon: Briefcase },
-          { name: 'Vinculación', path: '/vinculacion', icon: HeartHandshake },
-          {
-            name: 'Mis Postulaciones',
-            path: '/mis-postulaciones',
-            icon: FileText,
-          },
-          { name: 'Mi Perfil', path: '/perfil', icon: User },
-        ];
+        // Student navigation links
+        { name: 'Inicio', path: '/dashboard', icon: LayoutDashboard },
+        { name: 'Prácticas', path: '/practicas', icon: Briefcase },
+        { name: 'Vinculación', path: '/vinculacion', icon: HeartHandshake },
+        {
+          name: 'Mis Postulaciones',
+          path: '/mis-postulaciones',
+          icon: FileText,
+        },
+        { name: 'Mi Perfil', path: '/perfil', icon: User },
+      ];
 
   return (
     <nav className="w-64 h-screen bg-slate-900 text-white fixed left-0 top-0 flex flex-col shadow-xl z-50">
@@ -74,10 +74,9 @@ const Navbar = () => {
               key={link.path}
               to={link.path}
               className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 font-medium group
-                ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white hover:translate-x-1'
+                ${isActive
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white hover:translate-x-1'
                 }
               `}
             >

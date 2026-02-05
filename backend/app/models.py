@@ -158,6 +158,9 @@ class Opportunity(db.Model):
 
     # Serialize opportunity data
     def to_dict(self):
+        # Count approved applications for this opportunity
+        approved_count = sum(1 for app in self.applications if app.status == 'Aprobado')
+        
         return {
             'id': self.id,
             'title': self.title,
@@ -166,6 +169,8 @@ class Opportunity(db.Model):
             'location': self.location,
             'deadline': self.deadline,
             'vacancies': self.vacancies,
+            'approved_applications': approved_count,
+            'available_vacancies': max(0, self.vacancies - approved_count),
             'type': self.type,
             'created_at': self.created_at.strftime('%Y-%m-%d')
         }

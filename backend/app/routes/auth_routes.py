@@ -12,12 +12,13 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 # Safe import of email service
-# Attempts to import the email function. If it fails, the system continues without emails.
-
 try:
     from app.services import send_welcome_email
-except ImportError:
-    print("⚠️ Warning: Could not import send_welcome_email from services.py", flush=True)
+except ImportError as e:
+    print(f"⚠️ Warning: Could not import send_welcome_email from services.py: {e}", flush=True)
+    send_welcome_email = None
+except Exception as e:
+    print(f"❌ Unexpected error importing send_welcome_email: {e}", flush=True)
     send_welcome_email = None
 
 # AUTH BLUEPRINT

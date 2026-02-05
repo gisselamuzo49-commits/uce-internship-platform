@@ -7,6 +7,7 @@ import { useAdminOpportunities } from './useAdminOpportunities';
 import OpportunitiesHeader from './components/OpportunitiesHeader';
 import OpportunitiesTable from './components/OpportunitiesTable';
 import OpportunityFormModal from './components/OpportunityFormModal';
+import ConfirmModal from './components/ConfirmModal';
 
 const AdminOpportunities = () => {
   const { data, loading, filters, modal, form, actions } = useAdminOpportunities();
@@ -46,6 +47,15 @@ const AdminOpportunities = () => {
         handleSubmit={handleSubmit}
         closeModal={closeModal}
         isPending={isPending}
+      />
+
+      <ConfirmModal
+        isOpen={modal.isConfirmModalOpen}
+        title="Eliminar Oferta"
+        message="¿Estás seguro de que quieres eliminar esta oferta? Esta acción no se puede deshacer."
+        onConfirm={actions.confirmDelete}
+        onCancel={() => modal.setIsConfirmModalOpen(false)}
+        isLoading={loading.isPending}
       />
     </div>
   );

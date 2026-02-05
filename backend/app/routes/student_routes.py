@@ -83,8 +83,23 @@ def apply_to_opportunity():
         opp_id = data.get('opportunity_id')
         if not opp_id: return jsonify({'error': 'Falta ID oportunidad'}), 400
 
+        # Check if already applied
         if Application.query.filter_by(student_id=user_id, opportunity_id=opp_id).first():
             return jsonify({'error': 'Ya postulado'}), 400
+
+        # Check vacancy limit
+        opportunity = Opportunity.query.get(opp_id)
+        if not opportunity:
+            return jsonify({'error': 'Oportunidad no encontrada'}), 404
+        
+        # Count approved applications for this opportunity
+        approved_count = Application.query.filter_by(
+            opportunity_id=opp_id, 
+            status='Aprobado'
+        ).count()
+        
+        if approved_count >= opportunity.vacancies:
+            return jsonify({'error': 'No hay vacantes disponibles'}), 400
 
         new_app = Application(
             student_id=user_id, opportunity_id=opp_id,

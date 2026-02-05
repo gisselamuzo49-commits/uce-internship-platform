@@ -8,14 +8,22 @@ import {
   ArrowRight,
   Loader,
   CheckCircle,
+  Users,
 } from 'lucide-react';
 
 // Centralized API URL import
 import { API_URL } from '../../config/api';
+import { toast } from 'react-hot-toast';
+import ConfirmModal from '../panel_control/components/ConfirmModal';
+import { useState } from 'react';
 
 const Opportunities = ({ type }) => {
   const { authFetch } = useAuth();
   const queryClient = useQueryClient();
+
+  // Modal state
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [selectedOppId, setSelectedOppId] = useState(null);
 
   // Fetch opportunities
   const {
@@ -45,20 +53,25 @@ const Opportunities = ({ type }) => {
       return data;
     },
     onSuccess: () => {
-      alert("✅ ¡Postulación enviada con éxito! Revisa 'Mis Postulaciones'.");
+      toast.success("¡Postulación enviada con éxito! Revisa 'Mis Postulaciones'.");
       queryClient.invalidateQueries(['my-applications']);
+      setIsConfirmModalOpen(false);
+      setSelectedOppId(null);
     },
     onError: (error) => {
-      alert(`❌ Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     },
   });
 
   const handleApply = (id) => {
-    if (
-      !window.confirm('¿Estás seguro de que quieres postularte a esta vacante?')
-    )
-      return;
-    mutation.mutate(id);
+    setSelectedOppId(id);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmApply = () => {
+    if (selectedOppId) {
+      mutation.mutate(selectedOppId);
+    }
   };
 
   // Filter opportunities by type
@@ -141,28 +154,49 @@ const Opportunities = ({ type }) => {
                     <span className="flex items-center gap-1">
                       <Calendar size={14} /> Cierra: {op.deadline}
                     </span>
+                    <span className={`flex items-center gap-1 ${op.available_vacancies === 0
+                      ? 'text-red-500'
+                      : op.available_vacancies <= 2
+                        ? 'text-orange-500'
+                        : 'text-emerald-500'
+                      }`}>
+                      <Users size={14} /> {op.available_vacancies || 0}/{op.vacancies} vacantes
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
                   <button
                     onClick={() => handleApply(op.id)}
-                    disabled={mutation.isPending}
-                    className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition flex items-center gap-2 shadow-lg shadow-slate-200 active:scale-95"
+                    disabled={mutation.isPending || op.available_vacancies === 0}
+                    className={`px-6 py-3 rounded-xl font-bold text-sm transition flex items-center gap-2 shadow-lg active:scale-95 ${op.available_vacancies === 0
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
+                      }`}
                   >
-                    {mutation.isPending ? 'Enviando...' : 'Postular Ahora'}{' '}
+                    {op.available_vacancies === 0
+                      ? 'Sin Vacantes'
+                      : mutation.isPending
+                        ? 'Enviando...'
+                        : 'Postular Ahora'}{' '}
                     <ArrowRight size={16} />
                   </button>
-                  <span className="text-xs text-slate-400 font-medium">
-                    {op.vacancies} vacantes
-                  </span>
                 </div>
               </div>
             </div>
           ))
         )}
       </div>
-    </div>
+
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        title="Confirmar Postulación"
+        message="¿Estás seguro de que quieres postularte a esta vacante? Tu perfil será enviado a la empresa para su revisión."
+        onConfirm={confirmApply}
+        onCancel={() => setIsConfirmModalOpen(false)}
+        isLoading={mutation.isPending}
+      />
+    </div >
   );
 };
 
