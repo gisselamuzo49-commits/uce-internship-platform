@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { API_URL } from '../../config/api';
 
 export const useAdminDashboard = () => {
@@ -49,7 +50,7 @@ export const useAdminDashboard = () => {
             return res.json();
         },
         onSuccess: () => {
-            alert('✅ Oferta publicada correctamente');
+            toast.success('Oferta publicada correctamente');
             setShowCreateModal(false);
             setNewOpp({
                 title: '',
@@ -62,6 +63,9 @@ export const useAdminDashboard = () => {
             });
             queryClient.invalidateQueries(['admin-stats']);
         },
+        onError: (err) => {
+            toast.error('Error al publicar: ' + err.message);
+        }
     });
 
     const handleSubmit = (e) => {

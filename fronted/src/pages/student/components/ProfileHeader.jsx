@@ -6,11 +6,10 @@ const ProfileHeader = ({ user, isStudent, onEdit }) => {
     <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
       {/* Background gradient header */}
       <div
-        className={`h-32 relative bg-gradient-to-r ${
-          isStudent
+        className={`h-32 relative bg-gradient-to-r ${isStudent
             ? 'from-blue-600 to-indigo-700'
             : 'from-slate-800 to-slate-900'
-        }`}
+          }`}
       >
         {/* Profile picture circle */}
         <div className="absolute -bottom-12 left-8 p-1 bg-white rounded-full">
@@ -19,15 +18,13 @@ const ProfileHeader = ({ user, isStudent, onEdit }) => {
           </div>
         </div>
 
-        {/* Edit button (visible only for students) */}
-        {isStudent && (
-          <button
-            onClick={onEdit}
-            className="absolute bottom-4 right-8 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition"
-          >
-            <Edit size={16} /> Editar Datos
-          </button>
-        )}
+        {/* Edit button (visible for all) */}
+        <button
+          onClick={onEdit}
+          className="absolute bottom-4 right-8 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition"
+        >
+          <Edit size={16} /> Editar Datos
+        </button>
       </div>
 
       {/* User information section */}
@@ -39,11 +36,10 @@ const ProfileHeader = ({ user, isStudent, onEdit }) => {
 
         {/* Role badge */}
         <span
-          className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
-            isStudent
+          className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${isStudent
               ? 'bg-blue-100 text-blue-700'
               : 'bg-slate-100 text-slate-700'
-          }`}
+            }`}
         >
           {isStudent ? 'Estudiante' : 'Administrador'}
         </span>

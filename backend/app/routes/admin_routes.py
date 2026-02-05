@@ -137,7 +137,9 @@ def update_application_status(id):
     
     new_status = request.json.get('status')
     if new_status == 'Aprobado' and app.status != 'Aprobado':
-        app.approval_date = datetime.datetime.utcnow()
+        # Use Ecuador timezone (UTC-5) for approval date
+        ecuador_tz = datetime.timezone(datetime.timedelta(hours=-5))
+        app.approval_date = datetime.datetime.now(ecuador_tz).replace(tzinfo=None)
     
     app.status = new_status
     db.session.commit()

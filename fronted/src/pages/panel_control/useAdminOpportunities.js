@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { API_URL } from '../../config/api';
 
 const initialFormState = {
@@ -25,6 +26,8 @@ export const useAdminOpportunities = () => {
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [deleteId, setDeleteId] = useState(null);
 
     // Form state for opportunity
     const [formData, setFormData] = useState(initialFormState);
@@ -57,8 +60,11 @@ export const useAdminOpportunities = () => {
         onSuccess: () => {
             queryClient.invalidateQueries(['admin-opportunities']);
             closeModal();
-            alert('✅ Oferta creada exitosamente');
+            toast.success('Oferta creada exitosamente');
         },
+        onError: (err) => {
+            toast.error('Error al crear: ' + err.message);
+        }
     });
 
     // Update opportunity mutation
@@ -74,8 +80,11 @@ export const useAdminOpportunities = () => {
         onSuccess: () => {
             queryClient.invalidateQueries(['admin-opportunities']);
             closeModal();
-            alert('✅ Oferta actualizada');
+            toast.success('Oferta actualizada');
         },
+        onError: (err) => {
+            toast.error('Error al actualizar: ' + err.message);
+        }
     });
 
     // Delete opportunity mutation
@@ -88,8 +97,13 @@ export const useAdminOpportunities = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries(['admin-opportunities']);
-            alert('🗑️ Oferta eliminada');
+            setIsConfirmModalOpen(false);
+            setDeleteId(null);
+            toast.success('Oferta eliminada');
         },
+        onError: (err) => {
+            toast.error('Error al borrar: ' + err.message);
+        }
     });
 
     // Open modal to create new opportunity
@@ -127,8 +141,13 @@ export const useAdminOpportunities = () => {
     };
 
     const handleDelete = (id) => {
-        if (window.confirm('¿Seguro que quieres eliminar esta oferta?')) {
-            deleteMutation.mutate(id);
+        setDeleteId(id);
+        setIsConfirmModalOpen(true);
+    };
+
+    const confirmDelete = () => {
+        if (deleteId) {
+            deleteMutation.mutate(deleteId);
         }
     };
 
@@ -168,6 +187,8 @@ export const useAdminOpportunities = () => {
             isModalOpen,
             isEditing,
             closeModal,
+            isConfirmModalOpen,
+            setIsConfirmModalOpen,
         },
         form: {
             formData,
@@ -178,6 +199,7 @@ export const useAdminOpportunities = () => {
             handleOpenCreate,
             handleOpenEdit,
             handleDelete,
+            confirmDelete,
         },
     };
 };

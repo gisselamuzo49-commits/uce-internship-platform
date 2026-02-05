@@ -1,6 +1,7 @@
 import React from 'react';
 import { useProfile } from './useProfile';
 import { CheckCircle, AlertTriangle, X } from 'lucide-react';
+import ConfirmModal from '../panel_control/components/ConfirmModal';
 
 // Common components
 import ProfileHeader from './components/ProfileHeader';
@@ -15,35 +16,15 @@ import FormalizationList from './components/FormalizationList';
 import ManagementStats from './components/ManagementStats';
 
 const UserProfile = () => {
-  const { data, loading, modals, notification, forms, actions } = useProfile();
+  const { data, loading, modals, confirmData, forms, actions } = useProfile();
 
-  // Extract admin statistics from backend
+  // Extract relevant data
   const { user, isStudent, requests, adminStats } = data;
 
   if (!user) return <div className="p-10 text-center">Cargando perfil...</div>;
 
   return (
     <div className="max-w-5xl mx-auto p-8 relative space-y-8 min-h-screen">
-      {/* Notification toast */}
-      {notification.show && (
-        <div
-          className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
-        >
-          {notification.type === 'success' ? (
-            <CheckCircle size={24} />
-          ) : (
-            <AlertTriangle size={24} />
-          )}
-          {notification.message}
-          <button
-            onClick={notification.close}
-            className="ml-4 hover:bg-white/20 p-1 rounded-full"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
       {/* Profile header */}
       <ProfileHeader
         user={user}
@@ -96,6 +77,16 @@ const UserProfile = () => {
           onClose={() => modals.setIsEditing(false)}
         />
       )}
+
+      {/* Modern Confirmation Modal */}
+      <ConfirmModal
+        isOpen={modals.isConfirmModalOpen}
+        title={`Eliminar ${confirmData?.type === 'experience' ? 'Experiencia' : 'Certificación'}`}
+        message={`¿Estás seguro de que deseas eliminar esta ${confirmData?.type === 'experience' ? 'experiencia laboral' : 'certificación'}? Esta acción no se puede deshacer.`}
+        onConfirm={actions.confirmDelete}
+        onCancel={() => modals.setIsConfirmModalOpen(false)}
+        isLoading={false}
+      />
     </div>
   );
 };

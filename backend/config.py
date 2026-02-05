@@ -1,8 +1,12 @@
 import os
+from datetime import timedelta
 
 class Config:
-    # Secret key for session management
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev_key_12345'
+    # Secret key for session management (Minimum 32 characters for HS256)
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'uce_pasantias_secret_key_2024_secure_and_long_enough'
+
+    # JWT Configuration - Token expires after 1 day
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
 
     # Database configuration (PostgreSQL)
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \

@@ -7,6 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { Toaster } from 'react-hot-toast';
 
 // Global components
 import Navbar from './components/Navbar';
@@ -82,6 +83,7 @@ const Layout = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
+      <Toaster position="top-right" reverseOrder={false} />
       <Router>
         <Layout>
           <Routes>

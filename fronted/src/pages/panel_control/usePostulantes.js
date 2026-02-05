@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import * as XLSX from 'xlsx';
 import { API_URL } from '../../config/api';
+import { toast } from 'react-hot-toast';
 
 // Get correct local date
 const getLocalDate = () => {
@@ -29,12 +30,11 @@ export const usePostulantes = () => {
             if (res.ok) {
                 const data = await res.json();
                 setReportData(data);
-                console.log('Datos recibidos para la fecha', selectedDate, ':', data);
             } else {
-                console.error('Error en respuesta del servidor:', res.status);
+                toast.error('No se pudo cargar el reporte diario');
             }
         } catch (error) {
-            console.error('Error cargando reporte:', error);
+            toast.error('Error de conexión al servidor');
         } finally {
             setLoading(false);
         }
@@ -64,6 +64,7 @@ export const usePostulantes = () => {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Aprobados');
         XLSX.writeFile(workbook, `Reporte_Postulantes_${selectedDate}.xlsx`);
+        toast.success('Reporte exportado correctamente');
     };
 
     return {

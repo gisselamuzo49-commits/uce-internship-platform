@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import jsPDF from 'jspdf';
+import { toast } from 'react-hot-toast';
 import { API_URL } from '../../config/api';
 
 export const useAdminRequests = () => {
@@ -16,6 +17,12 @@ export const useAdminRequests = () => {
     // Modal state for viewing student profile
     const [viewingStudentId, setViewingStudentId] = useState(null);
     const [basicStudentInfo, setBasicStudentInfo] = useState(null);
+
+    // Modern Modal States
+    const [isTutorModalOpen, setIsTutorModalOpen] = useState(false);
+    const [tutorRequestTarget, setTutorRequestTarget] = useState(null);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [confirmData, setConfirmData] = useState(null);
 
     // Fetch applications
     const {
@@ -81,11 +88,11 @@ export const useAdminRequests = () => {
             return res.json();
         },
         onSuccess: () => {
-            alert('✅ Memo subido correctamente');
+            toast.success('Memo subido correctamente');
             queryClient.invalidateQueries(['admin-tutor-requests']);
         },
-        onError: () => {
-            alert('❌ Error al subir el archivo');
+        onError: (err) => {
+            toast.error('Error al subir el archivo: ' + err.message);
         },
     });
 
@@ -93,7 +100,7 @@ export const useAdminRequests = () => {
         const file = e.target.files[0];
         if (file) {
             if (file.type !== 'application/pdf') {
-                alert('Solo se permiten archivos PDF');
+                toast.error('Solo se permiten archivos PDF');
                 return;
             }
             uploadMemoMutation.mutate({ id: reqId, file });
@@ -202,35 +209,48 @@ export const useAdminRequests = () => {
             if (!res.ok) throw new Error('Error al actualizar estado');
         },
         onSuccess: () => {
+            toast.success('Estado actualizado');
             queryClient.invalidateQueries(['admin-applications']);
             queryClient.invalidateQueries(['admin-tutor-requests']);
+            setIsConfirmModalOpen(false);
+            setIsTutorModalOpen(false);
+            setConfirmData(null);
+            setTutorRequestTarget(null);
         },
+        onError: (err) => {
+            toast.error('Error al actualizar: ' + err.message);
+        }
     });
 
     const handleStatusChange = (id, type, status) => {
         if (type === 'tutor-requests' && status === 'Aprobado') {
-            const tutorName = prompt('✅ Ingresa el NOMBRE del Docente Tutor:');
-            if (!tutorName?.trim()) return;
-            const tutorEmail = prompt('📧 Ingresa el CORREO del Docente Tutor:');
-            updateStatusMutation.mutate({
-                id,
-                type,
-                status,
-                tutor_name: tutorName,
-                tutor_email: tutorEmail,
-            });
+            setTutorRequestTarget({ id, type, status });
+            setIsTutorModalOpen(true);
         } else {
-            if (
-                window.confirm(`¿Seguro que deseas cambiar el estado a: ${status}?`)
-            ) {
-                updateStatusMutation.mutate({ id, type, status });
-            }
+            setConfirmData({ id, type, status });
+            setIsConfirmModalOpen(true);
+        }
+    };
+
+    const confirmStatusChange = () => {
+        if (confirmData) {
+            updateStatusMutation.mutate(confirmData);
+        }
+    };
+
+    const handleTutorSubmit = (name, email) => {
+        if (tutorRequestTarget) {
+            updateStatusMutation.mutate({
+                ...tutorRequestTarget,
+                tutor_name: name,
+                tutor_email: email
+            });
         }
     };
 
     const handleOpenProfile = (item) => {
         const id = item.student_id || item.user_id;
-        if (!id) return alert('Error: No se encontró el ID del estudiante.');
+        if (!id) return toast.error('Error: No se encontró el ID del estudiante.');
         setViewingStudentId(id);
         setBasicStudentInfo({
             name: item.student_name,
@@ -274,6 +294,7 @@ export const useAdminRequests = () => {
         loading: {
             isLoading,
             loadingProfile,
+            isUpdating: updateStatusMutation.isPending,
         },
         error: {
             isError,
@@ -286,9 +307,16 @@ export const useAdminRequests = () => {
             filterType,
             setFilterType,
             viewingStudentId,
+            isTutorModalOpen,
+            isConfirmModalOpen,
+            confirmData,
         },
         actions: {
             handleStatusChange,
+            confirmStatusChange,
+            handleTutorSubmit,
+            setIsTutorModalOpen,
+            setIsConfirmModalOpen,
             handleOpenProfile,
             handleCloseProfile,
             handleFileChange,

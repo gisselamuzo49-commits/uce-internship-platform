@@ -5,8 +5,9 @@ import threading
 from werkzeug.utils import secure_filename
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from config import Config
 from botocore.client import Config as BotoConfig
+
+# Config will be imported inside functions to avoid path issues during early import
 
 # Cloudflare R2 file storage service
 def get_r2_client():
@@ -51,6 +52,7 @@ def get_file_from_r2(filename):
 # Email service (SMTP)
 def _send_email_thread(to_email, subject, body):
     try:
+        from config import Config
         print(f"📧 Intentando enviar correo a {to_email}...", flush=True)
         msg = MIMEMultipart()
         msg['From'] = Config.SMTP_EMAIL

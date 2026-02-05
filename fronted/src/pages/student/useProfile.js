@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useForm } from 'react-hook-form';
+import { toast } from 'react-hot-toast';
 
 // Centralized API URL import
 import { API_URL } from '../../config/api';
@@ -28,11 +29,10 @@ export const useProfile = () => {
   const [uploading, setUploading] = useState(false);
   const [addingCert, setAddingCert] = useState(false);
   const [addingExp, setAddingExp] = useState(false);
-  const [notification, setNotification] = useState({
-    show: false,
-    message: '',
-    type: '',
-  });
+
+  // Modern Confirmation Modal State
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [confirmData, setConfirmData] = useState(null);
 
   const forms = {
     profile: useForm(),
@@ -41,13 +41,6 @@ export const useProfile = () => {
     tutor: useForm(),
   };
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ show: true, message, type });
-    setTimeout(
-      () => setNotification({ show: false, message: '', type: '' }),
-      4000
-    );
-  };
 
   // Fetch tutor requests for student
   const fetchRequests = useCallback(async () => {
@@ -96,7 +89,7 @@ export const useProfile = () => {
       link.click();
       link.remove();
     } catch (error) {
-      showNotification('❌ Error al descargar', 'error');
+      toast.error('Error al descargar');
     }
   };
 
@@ -111,11 +104,11 @@ export const useProfile = () => {
       });
       if (res.ok) {
         await refreshUser();
-        showNotification('✅ Experiencia agregada', 'success');
+        toast.success('Experiencia agregada');
         forms.exp.reset();
       }
     } catch (e) {
-      showNotification('Error de conexión', 'error');
+      toast.error('Error de conexión');
     } finally {
       setAddingExp(false);
     }
@@ -132,11 +125,11 @@ export const useProfile = () => {
       });
       if (res.ok) {
         await refreshUser();
-        showNotification('✅ Curso agregado', 'success');
+        toast.success('Curso agregado');
         forms.cert.reset();
       }
     } catch (e) {
-      showNotification('Error de conexión', 'error');
+      toast.error('Error de conexión');
     } finally {
       setAddingCert(false);
     }
@@ -155,7 +148,7 @@ export const useProfile = () => {
       });
       if (res.ok) {
         await refreshUser();
-        showNotification('✅ Perfil actualizado', 'success');
+        toast.success('Perfil actualizado');
         setIsEditing(false);
         forms.profile.reset({ name: data.name, password: '' });
       }
@@ -182,57 +175,53 @@ export const useProfile = () => {
         body: formData,
       });
       if (res.ok) {
-        showNotification('✅ Solicitud enviada', 'success');
+        toast.success('Solicitud enviada');
         forms.tutor.reset();
         fetchRequests();
       }
     } catch (e) {
-      showNotification('Error conexión', 'error');
+      toast.error('Error conexión');
     } finally {
       setUploading(false);
     }
   };
 
   // Delete work experience entry
-  const handleDeleteExp = async (id) => {
-    if (!window.confirm('¿Eliminar esta experiencia?')) return;
-    try {
-      const res = await authFetch(`${API_URL}/api/experience/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        await refreshUser();
-        showNotification('🗑️ Eliminado', 'success');
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  const handleDeleteExp = (id) => {
+    setConfirmData({ id, type: 'experience' });
+    setIsConfirmModalOpen(true);
   };
 
   // Delete certification/course entry
-  const handleDeleteCert = async (id) => {
-    if (!window.confirm('¿Eliminar este curso?')) return;
+  const handleDeleteCert = (id) => {
+    setConfirmData({ id, type: 'certifications' });
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmData) return;
+    const { id, type } = confirmData;
     try {
-      const res = await authFetch(`${API_URL}/api/certifications/${id}`, {
+      const res = await authFetch(`${API_URL}/api/${type}/${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
         await refreshUser();
-        showNotification('🗑️ Eliminado', 'success');
+        toast.success('Eliminado correctamente');
+        setIsConfirmModalOpen(false);
+        setConfirmData(null);
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error al eliminar');
     }
   };
 
-  const closeNotification = () =>
-    setNotification({ ...notification, show: false });
 
   return {
     data: { user, isStudent, requests, adminStats },
     loading: { updating, uploading, addingCert, addingExp },
-    modals: { isEditing, setIsEditing },
-    notification: { ...notification, close: closeNotification },
+    modals: { isEditing, setIsEditing, isConfirmModalOpen, setIsConfirmModalOpen },
+    confirmData,
     forms,
     actions: {
       onAddExperience,
@@ -241,6 +230,7 @@ export const useProfile = () => {
       onUploadTutor,
       handleDeleteExp,
       handleDeleteCert,
+      confirmDelete,
       handleDownloadMemo,
     },
   };
