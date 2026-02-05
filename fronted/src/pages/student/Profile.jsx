@@ -2,29 +2,29 @@ import React from 'react';
 import { useProfile } from './useProfile';
 import { CheckCircle, AlertTriangle, X } from 'lucide-react';
 
-// --- COMPONENTES COMUNES ---
+// Common components
 import ProfileHeader from './components/ProfileHeader';
 import EditProfileModal from './components/EditProfileModal';
 
-// --- COMPONENTES DE ESTUDIANTE ---
+// Student components
 import ExperienceList from './components/ExperienceList';
 import EducationList from './components/EducationList';
 import FormalizationList from './components/FormalizationList';
 
-// --- COMPONENTES DE ADMINISTRADOR ---
-import ManagementStats from './components/ManagementStats'; // ✅ Solo importamos esto
+// Admin components
+import ManagementStats from './components/ManagementStats';
 
 const UserProfile = () => {
   const { data, loading, modals, notification, forms, actions } = useProfile();
 
-  // Extraemos adminStats (que viene de la BD)
+  // Extract admin statistics from backend
   const { user, isStudent, requests, adminStats } = data;
 
   if (!user) return <div className="p-10 text-center">Cargando perfil...</div>;
 
   return (
     <div className="max-w-5xl mx-auto p-8 relative space-y-8 min-h-screen">
-      {/* NOTIFICACIONES */}
+      {/* Notification toast */}
       {notification.show && (
         <div
           className={`fixed top-5 right-5 z-[9999] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 duration-300 font-bold text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
@@ -44,14 +44,14 @@ const UserProfile = () => {
         </div>
       )}
 
-      {/* HEADER */}
+      {/* Profile header */}
       <ProfileHeader
         user={user}
         isStudent={isStudent}
         onEdit={() => modals.setIsEditing(true)}
       />
 
-      {/* VISTA ESTUDIANTE */}
+      {/* Student profile sections */}
       {isStudent && (
         <>
           <ExperienceList
@@ -78,17 +78,16 @@ const UserProfile = () => {
         </>
       )}
 
-      {/* VISTA ADMINISTRADOR (Limpia, sin bitácora, solo métricas) */}
+      {/* Admin dashboard */}
       {!isStudent && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex justify-center">
-          {/* Usamos max-w-2xl para que el panel se vea centrado y elegante */}
           <div className="w-full max-w-2xl">
             <ManagementStats stats={adminStats} />
           </div>
         </div>
       )}
 
-      {/* MODAL */}
+      {/* Edit profile modal */}
       {modals.isEditing && (
         <EditProfileModal
           form={forms.profile}

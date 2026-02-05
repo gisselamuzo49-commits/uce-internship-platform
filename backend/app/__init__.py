@@ -5,18 +5,19 @@ from config import Config
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object(Config)  # Load configuration settings
+    app.config.from_object(Config)  # Load configuration
 
-    # Initialize Flask extensions
+    # Initialize extensions
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
-    mail.init_app(app)  # Connect Flask-Mail with Config
+    mail.init_app(app)
     
-    # Console check for mail configuration
-    print(f"📧 Mail system initialized with: {app.config['MAIL_USERNAME']}", flush=True)
+    # Use .get('SMTP_EMAIL') to prevent failure if not configured
+    email_user = app.config.get('SMTP_EMAIL', 'Not configured')
+    print(f"📧 Mail system initialized with: {email_user}", flush=True)
 
-    # Enable CORS for frontend integration
+    # CORS configuration (Allow Frontend to communicate with Backend)
     CORS(
         app,
         resources={r"/*": {"origins": "*"}},
@@ -24,7 +25,7 @@ def create_app():
         allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"]
     )
 
-    # Register application blueprints
+    # Register Blueprints (Routes)
     from app.routes.auth_routes import auth_bp
     app.register_blueprint(auth_bp)
 

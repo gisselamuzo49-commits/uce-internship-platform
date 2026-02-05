@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Fíjate que usamos "export const" para que coincida con las llaves { Skeleton }
+// Skeleton loading placeholder component
 export const Skeleton = ({ className, ...props }) => {
   return (
     <div

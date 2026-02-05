@@ -1,27 +1,28 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useForm } from 'react-hook-form'; // <--- 1. IMPORTAMOS RHF
+import { useForm } from 'react-hook-form';
 import { GoogleLogin } from '@react-oauth/google';
+// Centralized API URL import
+import { API_URL } from '../config/api';
 
 const Register = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  // 2. CONFIGURAMOS EL HOOK
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm();
 
-  // --- LÓGICA 1: REGISTRO CON CORREO/PASSWORD ---
+  // Handle user registration with email and password
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/api/register', {
+      const res = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data), // 'data' ya contiene name, email y password
+        body: JSON.stringify(data),
       });
 
       const result = await res.json();
@@ -39,10 +40,10 @@ const Register = () => {
     }
   };
 
-  // --- LÓGICA 2: REGISTRO CON GOOGLE ---
+  // Handle Google OAuth registration
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      const res = await fetch('http://localhost:5001/api/google-login', {
+      const res = await fetch(`${API_URL}/api/google-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: credentialResponse.credential }),
@@ -91,9 +92,8 @@ const Register = () => {
           Crear Cuenta
         </h2>
 
-        {/* 3. CONECTAMOS EL FORMULARIO A RHF */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Nombre */}
+          {/* Full name field */}
           <div className="space-y-1">
             <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
               Nombre Completo
@@ -101,7 +101,6 @@ const Register = () => {
             <input
               type="text"
               placeholder="Ej: Juan Pérez"
-              // Registro con validación básica
               {...register('name', { required: 'El nombre es obligatorio' })}
               className={`w-full bg-gray-200 text-gray-900 rounded-lg px-4 py-3 outline-none focus:ring-2 font-medium transition-all
                 ${errors.name ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500'}
@@ -114,7 +113,7 @@ const Register = () => {
             )}
           </div>
 
-          {/* Email */}
+          {/* Institutional email field */}
           <div className="space-y-1">
             <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
               Correo Institucional
@@ -140,7 +139,7 @@ const Register = () => {
             )}
           </div>
 
-          {/* Password */}
+          {/* Password field */}
           <div className="space-y-1">
             <label className="text-gray-300 text-xs ml-1 font-bold uppercase tracking-wider">
               Contraseña

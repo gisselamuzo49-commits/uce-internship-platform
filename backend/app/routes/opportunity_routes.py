@@ -77,7 +77,7 @@ def create_opportunity():
             location=data['location'],
             deadline=deadline_date,
             vacancies=int(data.get('vacancies', 1)),
-            type=data.get('type', 'pasantia')  # internship or community service
+            type=data.get('type', 'pasantia')  
         )
         
         db.session.add(new_opp)
@@ -136,8 +136,7 @@ def get_opportunity_applicants(id):
 @jwt_required()
 def update_application_status(id):
     data = request.json
-    new_status = data.get('status')  # Expected: Approved or Rejected
-    
+    new_status = data.get('status')  
     app = Application.query.get(id)
     if not app:
         return jsonify({'error': 'Application not found'}), 404

@@ -2,23 +2,17 @@ from app.extensions import db
 from datetime import datetime
 
 
-# USER MODEL (STUDENT / ADMIN)
+# User model for students and admins
 class User(db.Model):
     __tablename__ = 'users'
 
-    # Primary key
     id = db.Column(db.Integer, primary_key=True)
-
-    # Basic user information
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), default='student')  # 'student' or 'admin'
 
-    # User role: 'student' or 'admin'
-    role = db.Column(db.String(20), default='student')
-
-    # Relationships
-    # cascade="all, delete-orphan" ensures related records are deleted with the user
+    # Delete related records when user is deleted (cascade)
     applications = db.relationship(
         'Application',
         backref='student_user',
@@ -54,7 +48,7 @@ class User(db.Model):
         cascade="all, delete-orphan"
     )
 
-    # Convert user object to dictionary (used by the frontend)
+    # Convert user object to dictionary
     def to_dict(self):
         return {
             'id': self.id,
@@ -66,17 +60,13 @@ class User(db.Model):
         }
 
 
-# WORK EXPERIENCE MODEL
+# Work experience model
 class Experience(db.Model):
     __tablename__ = 'experiences'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Foreign key referencing the user
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-
-    # Job information
-    title = db.Column(db.String(100), nullable=False)  # Used as 'role' in frontend
+    title = db.Column(db.String(100), nullable=False)
     company = db.Column(db.String(100), nullable=False)
     start_date = db.Column(db.String(20), nullable=False)
     end_date = db.Column(db.String(20), nullable=True)
@@ -95,16 +85,12 @@ class Experience(db.Model):
         }
 
 
-# CERTIFICATIONS AND COURSES MODEL
+# Certifications and courses model
 class Certification(db.Model):
     __tablename__ = 'certifications'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Foreign key referencing the user
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-
-    # Certification data
     title = db.Column(db.String(100), nullable=False)
     institution = db.Column(db.String(100), nullable=False)
     year = db.Column(db.String(10), nullable=False)
@@ -120,30 +106,18 @@ class Certification(db.Model):
         }
 
 
-# TUTOR REQUEST MODEL (FORMALIZATION PROCESS)
+# Tutor request model (formalization process)
 class TutorRequest(db.Model):
     __tablename__ = 'tutor_requests'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Student who submitted the request
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-
     title = db.Column(db.String(100), nullable=True)
     filename = db.Column(db.String(200), nullable=False)
-
-    # Request status (e.g., Pending, Approved, Rejected)
     status = db.Column(db.String(50), default='Pendiente')
-
     memo_filename = db.Column(db.String(255), nullable=True)
-
-    # Request creation date
     date = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Assigned tutor information
     assigned_tutor = db.Column(db.String(100), nullable=True)
-
-    # Tutor email address
     tutor_email = db.Column(db.String(150), nullable=True)
 
     # Serialize tutor request data
@@ -160,26 +134,21 @@ class TutorRequest(db.Model):
         }
 
 
-# OPPORTUNITIES MODEL (JOB / INTERNSHIP OFFERS)
+# Opportunities model (job/internship offers)
 class Opportunity(db.Model):
     __tablename__ = 'opportunities'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Opportunity details
     title = db.Column(db.String(100), nullable=False)
     company = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     location = db.Column(db.String(100), nullable=False)
     deadline = db.Column(db.String(20), nullable=False)
-
     vacancies = db.Column(db.Integer, default=1)
     type = db.Column(db.String(50), default='pasantia')
-
-    # Creation timestamp
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Applications related to this opportunity
+    # Delete related applications when opportunity is deleted
     applications = db.relationship(
         'Application',
         backref='opportunity',
@@ -202,21 +171,16 @@ class Opportunity(db.Model):
         }
 
 
-# APPLICATION MODEL (STUDENT APPLICATIONS)
+# Application model (student applications to opportunities)
 class Application(db.Model):
     __tablename__ = 'applications'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Foreign keys
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'), nullable=False)
-
-    # Application status
     status = db.Column(db.String(20), default='Pendiente')
-
-    # Application date
     date = db.Column(db.DateTime, default=datetime.utcnow)
+    approval_date = db.Column(db.DateTime, nullable=True)
 
     # One-to-one relationship with appointment
     appointment = db.relationship(
@@ -237,17 +201,13 @@ class Application(db.Model):
         }
 
 
-# APPOINTMENT / INTERVIEW MODEL
+# Appointment/interview model
 class Appointment(db.Model):
     __tablename__ = 'appointments'
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Foreign keys
     application_id = db.Column(db.Integer, db.ForeignKey('applications.id'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-
-    # Appointment details
     date = db.Column(db.String(20), nullable=False)
     time = db.Column(db.String(10), nullable=False)
     status = db.Column(db.String(20), default='Agendada')

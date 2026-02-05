@@ -1,9 +1,9 @@
-// src/components/Notification.jsx
+// Notification toast component for success/error messages
 import React, { useEffect } from 'react';
 import { CheckCircle, XCircle, X } from 'lucide-react';
 
 const Notification = ({ message, type, onClose }) => {
-  // Cerrar automáticamente después de 5 segundos
+  // Auto-close after 5 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();

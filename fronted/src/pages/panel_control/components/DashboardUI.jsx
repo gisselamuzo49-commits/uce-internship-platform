@@ -1,5 +1,5 @@
 import React from 'react';
-// 👇 Agregamos Trash2 aquí
+
 import { Building, X, Trash2 } from 'lucide-react';
 import { Skeleton } from '../../../components/ui/Skeleton';
 
@@ -55,7 +55,7 @@ export const StatCard = ({ icon: Icon, title, value, colorBg, colorText }) => (
   </div>
 );
 
-// 👇 AQUÍ ESTÁ LA ACTUALIZACIÓN CON EL BOTÓN DE BORRAR
+// Application card with delete functionality
 export const ApplicationCard = ({
   title,
   subtitle,
@@ -63,16 +63,16 @@ export const ApplicationCard = ({
   date,
   tags,
   onClick,
-  onDelete, // Recibimos la función
+  onDelete, // Delete callback function
 }) => {
-  // Mapa de colores flexible (por si el status no coincide exacto, usa el gris)
+  // Map application status to colors
   const statusColors = {
     Pendiente: 'bg-yellow-100 text-yellow-700',
     Aprobado: 'bg-emerald-100 text-emerald-700',
     Rechazado: 'bg-rose-100 text-rose-700',
   };
 
-  // Determinar color base si no está en el mapa
+  // Use default color if status not found
   const badgeClass = statusColors[status] || 'bg-slate-100 text-slate-700';
 
   return (
@@ -81,7 +81,7 @@ export const ApplicationCard = ({
       className={`bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition-all group ${onClick ? 'cursor-pointer hover:bg-slate-50' : ''}`}
     >
       <div className="flex items-center gap-4">
-        {/* Ícono de edificio (podemos cambiar color según tipo si quieres, por ahora azul como tu diseño) */}
+        {/* Building icon */}
         <div className="h-12 w-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
           <Building size={24} />
         </div>
@@ -113,11 +113,11 @@ export const ApplicationCard = ({
           <p className="text-xs text-slate-400 mt-2">{date}</p>
         </div>
 
-        {/* BOTÓN DE BORRAR: Solo aparece si le pasas la función onDelete */}
+        {/* Delete button (only shown if onDelete is provided) */}
         {onDelete && (
           <button
             onClick={(e) => {
-              e.stopPropagation(); // Evita que se abra el detalle al hacer click en borrar
+              e.stopPropagation(); // Prevent parent click
               onDelete();
             }}
             className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import Notification from '../../components/Notification';
-// Asegúrate de que esta ruta sea correcta según donde guardaste DashboardUI
 import {
   QuickActionCard,
   StatCard,
@@ -23,12 +22,15 @@ import {
   StatSkeleton,
 } from '../panel_control/components/DashboardUI';
 
+// Centralized API URL import
+import { API_URL } from '../../config/api';
+
 const StudentDashboard = () => {
   const { user, authFetch } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // --- ESTADOS ---
+  // Component state
   const [showCVModal, setShowCVModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -44,45 +46,38 @@ const StudentDashboard = () => {
   });
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
-  // --- QUERIES ---
-
-  // 1. Postulaciones (URL CORREGIDA)
+  // Fetch student applications
   const { data: applications = [], isLoading: loadingApps } = useQuery({
     queryKey: ['applications', 'student'],
     queryFn: async () => {
-      // 👇 CORRECCIÓN AQUÍ
-      const res = await authFetch(
-        'http://localhost:5001/api/student/my-applications'
-      );
+      const res = await authFetch(`${API_URL}/api/student/my-applications`);
       if (!res.ok) throw new Error('Error fetching applications');
       return res.json();
     },
     staleTime: 1000 * 60,
   });
 
-  // 2. Citas (URL Genérica, asegurate que exista en el backend)
+  // Fetch student appointments
   const { data: myAppointments = [], isLoading: loadingAppts } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
-      const res = await authFetch('http://localhost:5001/api/appointments');
-      if (!res.ok) return []; // Si falla, retornamos vacío para no romper la pantalla
+      const res = await authFetch(`${API_URL}/api/appointments`);
+      if (!res.ok) return [];
       return res.json();
     },
   });
 
-  // 3. Perfil (Para el score)
+  // Fetch student profile for score calculation
   const { data: profileData } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
-      const res = await authFetch(
-        `http://localhost:5001/api/profile/${user.id}`
-      );
+      const res = await authFetch(`${API_URL}/api/profile/${user.id}`);
       return res.json();
     },
     enabled: !!user,
   });
 
-  // --- CÁLCULOS ---
+  // Calculate statistics
   const approvedApps = applications.filter((app) => app.status === 'Aprobado');
   const notifications = applications.filter(
     (app) => app.status !== 'Pendiente'
@@ -93,7 +88,7 @@ const StudentDashboard = () => {
   if (profileData?.certifications?.length > 0) studentScore += 40;
   const isLoading = loadingApps || loadingAppts;
 
-  // --- HANDLERS ---
+  // Handle CV submission
   const handleCVSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -107,8 +102,7 @@ const StudentDashboard = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      // Nota: Asegúrate que esta ruta exista en tu backend o usa la de tutor-requests
-      const res = await fetch('http://localhost:5001/api/tutor-requests', {
+      const res = await fetch(`${API_URL}/api/tutor-requests`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -134,7 +128,7 @@ const StudentDashboard = () => {
     if (!appointmentData.appId) return;
     setScheduling(true);
     try {
-      const res = await authFetch('http://localhost:5001/api/appointments', {
+      const res = await authFetch(`${API_URL}/api/appointments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,7 +157,7 @@ const StudentDashboard = () => {
         onClose={() => setVisualNotification({ message: null, type: null })}
       />
 
-      {/* MODALES */}
+      {/* Modals */}
       {showCVModal && (
         <ModalOverlay
           title="Subir Documento"
@@ -247,7 +241,7 @@ const StudentDashboard = () => {
         </ModalOverlay>
       )}
 
-      {/* HEADER */}
+      {/* Page header with user greeting */}
       <header className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative z-40">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
@@ -283,7 +277,7 @@ const StudentDashboard = () => {
         </div>
       </header>
 
-      {/* STATS */}
+      {/* Statistics cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {isLoading ? (
           <>
@@ -317,7 +311,7 @@ const StudentDashboard = () => {
         )}
       </div>
 
-      {/* SCORE CARD */}
+      {/* Profile completion score */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-2xl shadow-lg col-span-3 text-white flex flex-col md:flex-row items-center justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20"></div>
@@ -383,7 +377,7 @@ const StudentDashboard = () => {
         </div>
       </div>
 
-      {/* ACCIONES Y LISTA */}
+      {/* Quick actions and recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section>

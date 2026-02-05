@@ -12,7 +12,6 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-// 👇 IMPORTAMOS TODOS LOS ICONOS NECESARIOS PARA EL NUEVO DISEÑO
 import {
   Users,
   FileText,
@@ -23,19 +22,22 @@ import {
   User,
   BarChart3,
   Activity,
-  MapPin, // Nuevo
-  AlignLeft, // Nuevo
-  Building, // Nuevo
-  PlusCircle, // Nuevo
+  MapPin,
+  AlignLeft,
+  Building,
+  PlusCircle,
 } from 'lucide-react';
 import { StatCard, ModalOverlay } from './components/DashboardUI';
+
+// Centralized API URL import
+import { API_URL } from '../../config/api';
 
 const AdminDashboard = () => {
   const { authFetch, user } = useAuth();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Estados de formulario
+  // Form state for new opportunity
   const [newOpp, setNewOpp] = useState({
     title: '',
     company: '',
@@ -46,28 +48,28 @@ const AdminDashboard = () => {
     type: 'pasantia',
   });
 
-  // Manejador de cambios
+  // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setNewOpp((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Fetch admin dashboard statistics
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
-    queryFn: async () =>
-      (await authFetch('http://localhost:5001/api/admin/stats')).json(),
+    queryFn: async () => (await authFetch(`${API_URL}/api/admin/stats`)).json(),
   });
 
   const { data: appointments = [] } = useQuery({
     queryKey: ['admin-appointments'],
     queryFn: async () =>
-      (await authFetch('http://localhost:5001/api/admin/appointments')).json(),
+      (await authFetch(`${API_URL}/api/admin/appointments`)).json(),
   });
 
-  // Mutación para crear oferta
+  // Create new opportunity mutation
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const res = await authFetch('http://localhost:5001/api/opportunities', {
+      const res = await authFetch(`${API_URL}/api/opportunities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -98,7 +100,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8">
-      {/* HEADER DASHBOARD */}
+      {/* Header with welcome message */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-black text-slate-900">
@@ -110,7 +112,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* STATS CARDS */}
+      {/* Dashboard statistics cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Estudiantes"
@@ -142,9 +144,9 @@ const AdminDashboard = () => {
         />
       </div>
 
-      {/* LAYOUT PRINCIPAL */}
+      {/* Main dashboard grid layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA */}
+        {/* Quick actions and tutor workload charts */}
         <div className="lg:col-span-1 space-y-8">
           <div className="h-fit bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
             <h2 className="text-xl font-bold text-slate-800 mb-4">
@@ -204,7 +206,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA */}
+        {/* Appointments and activity trend charts */}
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
@@ -301,19 +303,15 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* ======================================================= */}
-      {/* MODAL CON TU DISEÑO EXACTO */}
-      {/* ======================================================= */}
+      {/* Create new opportunity modal */}
       {showCreateModal && (
         <ModalOverlay onClose={() => setShowCreateModal(false)}>
-          {/* Header Oscuro del Modal */}
           <div className="bg-slate-900 p-6 text-white flex items-center gap-3 -mx-6 -mt-6 mb-6 rounded-t-2xl">
             <PlusCircle size={24} />
             <h1 className="text-2xl font-black">Publicar Nueva Vacante</h1>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* SELECTOR DE TIPO (Diseño de Tarjetas) */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Tipo de Oferta
@@ -337,7 +335,7 @@ const AdminDashboard = () => {
                   <input
                     type="radio"
                     name="type"
-                    value="vinculacion" // Ajusta esto si tu backend usa otro valor
+                    value="vinculacion"
                     checked={newOpp.type === 'vinculacion'}
                     onChange={handleChange}
                     className="peer sr-only"
@@ -350,7 +348,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* GRID TITULO / EMPRESA */}
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
@@ -392,7 +389,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* GRID UBICACIÓN / FECHA / VACANTES */}
             <div className="grid md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
@@ -454,7 +450,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* DESCRIPCIÓN */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                 Descripción
@@ -475,7 +470,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* BOTÓN DE ACCIÓN */}
             <div className="flex justify-end pt-4">
               <button
                 type="submit"

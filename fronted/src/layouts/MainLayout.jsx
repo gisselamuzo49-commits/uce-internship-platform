@@ -17,26 +17,25 @@ const MainLayout = () => {
   const { logout, user } = useAuth();
   const location = useLocation();
 
-  // Verificación robusta de Admin (Mayúscula o minúscula)
+  // Check if user is admin (case-insensitive)
   const isAdmin = user?.role === 'admin' || user?.role === 'Admin';
 
   const menuItems = isAdmin
     ? [
-        // --- MENÚ ADMINISTRADOR ---
+        // Admin navigation menu
         {
           path: '/dashboard',
           icon: LayoutDashboard,
           label: 'Dashboard',
         },
         {
-          // ESTE ES EL PANEL DE GESTIÓN (Aprobar/Rechazar)
+          // Manage student requests (approve/reject)
           path: '/admin/postulaciones',
           icon: Briefcase,
           label: 'Gestionar Solicitudes',
         },
         {
-          // ESTE ES EL DE EXCEL (Lo que pediste)
-          // Apunta a '/admin/reportes' que en App.jsx carga Postulantes.jsx
+          // Student applications report
           path: '/admin/reportes',
           icon: FileSpreadsheet,
           label: 'Postulantes (Excel)',
@@ -48,7 +47,7 @@ const MainLayout = () => {
         },
       ]
     : [
-        // --- MENÚ ESTUDIANTE ---
+        // Student navigation menu
         {
           path: '/dashboard',
           icon: LayoutDashboard,
@@ -73,7 +72,7 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex font-sans">
-      {/* --- SIDEBAR INTEGRADO --- */}
+      {/* Left sidebar navigation */}
       <aside className="w-64 bg-[#0f172a] text-white flex flex-col fixed h-full z-50">
         <div className="h-20 flex items-center px-6 gap-3 border-b border-white/5">
           <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black shadow-lg">
@@ -119,7 +118,7 @@ const MainLayout = () => {
         </div>
       </aside>
 
-      {/* --- CONTENIDO PRINCIPAL --- */}
+      {/* Main content area */}
       <main className="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
         <header className="bg-white/80 backdrop-blur-md h-16 flex items-center px-8 justify-between border-b border-slate-100 z-40">
           <div className="text-sm font-semibold text-slate-400 italic uppercase tracking-tighter">
@@ -135,7 +134,7 @@ const MainLayout = () => {
           </div>
         </header>
 
-        {/* Aquí se renderizan las páginas (Postulantes.jsx, AdminRequests.jsx, etc) */}
+        {/* Page content rendered here */}
         <div className="flex-1 overflow-auto p-10 bg-slate-50">
           <Outlet />
         </div>

@@ -14,19 +14,22 @@ import {
   X,
 } from 'lucide-react';
 
+// Centralized API URL import
+import { API_URL } from '../../config/api';
+
 const AdminOpportunities = () => {
   const { authFetch } = useAuth();
   const queryClient = useQueryClient();
 
-  // --- ESTADOS ---
+  // Search and filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
-  // Estado del Modal
+  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false); // true = Editar, false = Crear
+  const [isEditing, setIsEditing] = useState(false);
 
-  // Estado del Formulario
+  // Form state for opportunity
   const [formData, setFormData] = useState({
     id: null,
     title: '',
@@ -38,7 +41,7 @@ const AdminOpportunities = () => {
     type: 'pasantia',
   });
 
-  // --- 1. CARGAR OFERTAS ---
+  // Fetch all opportunities
   const {
     data: opportunities = [],
     isLoading,
@@ -46,21 +49,16 @@ const AdminOpportunities = () => {
   } = useQuery({
     queryKey: ['admin-opportunities'],
     queryFn: async () => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-      const res = await authFetch(`${baseUrl}/api/opportunities`); // Asegúrate de tener este GET en el backend, o usa applications si no tienes endpoint de listado público
-      // Nota: Si tu backend no tiene GET /api/opportunities público, usa el endpoint que listaba las ofertas.
-      // Basado en tu código de backend anterior, parece que te falta el GET /api/opportunities (lista general).
-      // Si falla, usa /api/student/opportunities?type=all
+      const res = await authFetch(`${API_URL}/api/opportunities`);
       if (!res.ok) throw new Error('Error cargando ofertas');
       return res.json();
     },
   });
 
-  // --- 2. MUTACIÓN: CREAR (POST) ---
+  // Create new opportunity mutation
   const createMutation = useMutation({
     mutationFn: async (newOpp) => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-      const res = await authFetch(`${baseUrl}/api/opportunities`, {
+      const res = await authFetch(`${API_URL}/api/opportunities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newOpp),
@@ -75,11 +73,10 @@ const AdminOpportunities = () => {
     },
   });
 
-  // --- 3. MUTACIÓN: EDITAR (PUT) ---
+  // Update opportunity mutation
   const updateMutation = useMutation({
     mutationFn: async (opp) => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-      const res = await authFetch(`${baseUrl}/api/opportunities/${opp.id}`, {
+      const res = await authFetch(`${API_URL}/api/opportunities/${opp.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(opp),
@@ -93,11 +90,10 @@ const AdminOpportunities = () => {
     },
   });
 
-  // --- 4. MUTACIÓN: BORRAR (DELETE) ---
+  // Delete opportunity mutation
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-      const res = await authFetch(`${baseUrl}/api/opportunities/${id}`, {
+      const res = await authFetch(`${API_URL}/api/opportunities/${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Error al borrar');
@@ -108,9 +104,7 @@ const AdminOpportunities = () => {
     },
   });
 
-  // --- HANDLERS ---
-
-  // Abrir modal para CREAR
+  // Open modal to create new opportunity
   const handleOpenCreate = () => {
     setFormData({
       id: null,
@@ -126,7 +120,7 @@ const AdminOpportunities = () => {
     setIsModalOpen(true);
   };
 
-  // Abrir modal para EDITAR
+  // Open modal to edit opportunity
   const handleOpenEdit = (opp) => {
     setFormData({
       id: opp.id,
@@ -159,7 +153,7 @@ const AdminOpportunities = () => {
     }
   };
 
-  // --- FILTRADO ---
+  // Filter opportunities by search term and type
   const filteredOpps = opportunities.filter((op) => {
     const matchesSearch =
       op.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -170,7 +164,7 @@ const AdminOpportunities = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8">
-      {/* HEADER */}
+      {/* Page header with filters and create button */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-8 gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-900">
@@ -211,7 +205,7 @@ const AdminOpportunities = () => {
             />
           </div>
 
-          {/* BOTÓN CREAR (AHORA SÍ FUNCIONA) */}
+          {/* BOTÓN CREAR */}
           <button
             onClick={handleOpenCreate}
             className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 md:w-auto w-full font-bold px-4"
@@ -222,7 +216,7 @@ const AdminOpportunities = () => {
         </div>
       </div>
 
-      {/* TABLA */}
+      {/* Opportunities table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {isLoading ? (
           <div className="p-10 text-center animate-pulse text-slate-500">
@@ -300,7 +294,7 @@ const AdminOpportunities = () => {
         )}
       </div>
 
-      {/* --- MODAL (CREAR / EDITAR) --- */}
+      {/* Create/Edit opportunity modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex justify-center items-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -455,20 +449,20 @@ const AdminOpportunities = () => {
         </div>
       )}
 
-      {/* Estilos CSS locales para inputs (para no repetir clases) */}
+      {/* Input field styles */}
       <style>{`
         .input-std {
             width: 100%;
             padding: 0.75rem;
-            background-color: #f8fafc; /* bg-slate-50 */
-            border: 1px solid #e2e8f0; /* border-slate-200 */
-            border-radius: 0.75rem; /* rounded-xl */
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
             outline: none;
-            font-size: 0.875rem; /* text-sm */
+            font-size: 0.875rem;
             transition: all 0.2s;
         }
         .input-std:focus {
-            border-color: #3b82f6; /* blue-500 */
+            border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
       `}</style>

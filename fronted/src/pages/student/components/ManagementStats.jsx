@@ -1,9 +1,9 @@
 import React from 'react';
 import { FileText, Clock, PieChart, CheckCircle } from 'lucide-react';
 
-// Recibimos "stats" como propiedad desde el padre (Profile.jsx)
+// Receive stats from parent component
 const ManagementStats = ({ stats }) => {
-  // Valores por defecto para evitar errores si carga lento
+  // Default values to prevent errors during loading
   const safeStats = stats || {
     total: 0,
     aprobadas: 0,
@@ -11,7 +11,7 @@ const ManagementStats = ({ stats }) => {
     avales: 0,
   };
 
-  // Cálculo de porcentaje de Avales vs Aprobados
+  // Calculate percentage of documents vs approved applications
   const porcentajeAvales =
     safeStats.aprobadas > 0
       ? Math.round((safeStats.avales / safeStats.aprobadas) * 100)
@@ -24,7 +24,7 @@ const ManagementStats = ({ stats }) => {
       </h2>
 
       <div className="space-y-8">
-        {/* 1. TARJETA PRINCIPAL: PENDIENTES */}
+        {/* Pending requests card */}
         <div className="p-6 bg-orange-50 rounded-2xl border border-orange-100 flex justify-between items-center relative overflow-hidden">
           <div className="relative z-10 flex items-center gap-4">
             <div className="bg-white p-3 rounded-xl text-orange-500 shadow-sm">
@@ -41,11 +41,11 @@ const ManagementStats = ({ stats }) => {
             {safeStats.pendientes}
           </span>
 
-          {/* Decoración de fondo */}
+          {/* Background gradient decoration */}
           <div className="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-orange-100/50 to-transparent"></div>
         </div>
 
-        {/* 2. BARRA DE PROGRESO: AVALES */}
+        {/* Documents progress bar */}
         <div>
           <div className="flex justify-between text-sm font-bold text-slate-700 mb-3">
             <span className="flex items-center gap-2">
@@ -74,7 +74,7 @@ const ManagementStats = ({ stats }) => {
           </p>
         </div>
 
-        {/* 3. RESUMEN DE TOTALES */}
+        {/* Summary of statistics */}
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
           <div className="flex flex-col items-center p-4 rounded-xl hover:bg-slate-50 transition">
             <span className="text-3xl font-black text-slate-800">

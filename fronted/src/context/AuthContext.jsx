@@ -1,12 +1,14 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { googleLogout } from '@react-oauth/google';
 
+// Centralized API URL import
+import { API_URL } from '../config/api';
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context)
-    throw new Error('useAuth debe usarse dentro de un AuthProvider');
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
 
@@ -14,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Cargar usuario al iniciar la app
+  // Load user from localStorage on app initialization
   useEffect(() => {
     const storedUser = localStorage.getItem('siiu_user');
     const token = localStorage.getItem('token');
@@ -25,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // --- HELPER PARA PETICIONES AUTENTICADAS ---
+  // Helper for authenticated API requests
   const authFetch = async (url, options = {}) => {
     const token = localStorage.getItem('token');
     const headers = {
@@ -36,10 +38,11 @@ export const AuthProvider = ({ children }) => {
     return fetch(url, { ...options, headers });
   };
 
-  // --- FUNCIÓN DE LOGIN ---
+  // User login with email and password
   const login = async (email, password) => {
     try {
-      const res = await fetch('http://localhost:5001/api/login', {
+      // 👇 USAMOS API_URL IMPORTADA
+      const res = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -64,10 +67,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- FUNCIÓN DE GOOGLE LOGIN ---
+  // Google OAuth login
   const googleLogin = async (googleToken) => {
     try {
-      const res = await fetch('http://localhost:5001/api/google-login', {
+      // 👇 USAMOS API_URL IMPORTADA
+      const res = await fetch(`${API_URL}/api/google-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: googleToken }),
@@ -87,7 +91,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- FUNCIÓN LOGOUT ---
+  // Logout and clear authentication
   const logout = () => {
     googleLogout();
     localStorage.removeItem('token');
@@ -95,9 +99,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  // --- REFRESCAR USUARIO (CORREGIDO) ---
+  // Refresh user profile from API
   const refreshUser = async () => {
-    // Si no hay usuario en el estado, intentamos leerlo del localStorage para obtener el ID
     let currentUserId = user?.id;
     if (!currentUserId) {
       const stored = localStorage.getItem('siiu_user');
@@ -107,17 +110,14 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    if (!currentUserId) return; // Si no hay ID, no podemos refrescar
+    if (!currentUserId) return;
 
     try {
-      // 👇 AQUÍ ESTABA EL ERROR: Faltaba agregar /${currentUserId}
-      const res = await authFetch(
-        `http://localhost:5001/api/profile/${currentUserId}`
-      );
+      // 👇 USAMOS API_URL IMPORTADA
+      const res = await authFetch(`${API_URL}/api/profile/${currentUserId}`);
 
       if (res.ok) {
         const data = await res.json();
-        // Actualizamos el estado y el localStorage con la info nueva (que incluye experiencias)
         localStorage.setItem('siiu_user', JSON.stringify(data));
         setUser(data);
       } else {

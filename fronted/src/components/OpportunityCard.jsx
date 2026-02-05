@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 const OpportunityCard = ({ opp, isApplied, onApply }) => {
-  // Lógica visual local (sin afectar al backend)
+  // Compute opportunity status (expired, full, or available)
   const isExpired = opp.deadline && new Date(opp.deadline) < new Date();
   const isFull = opp.applicants_count >= opp.vacancies;
 

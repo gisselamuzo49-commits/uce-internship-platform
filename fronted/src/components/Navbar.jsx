@@ -18,32 +18,27 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Función para cerrar sesión
+  // Handle user logout
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  // Definir links según el rol del usuario
+  // Navigation links based on user role
   const links =
     user?.role === 'admin'
       ? [
           { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-
-          // 1. GESTIÓN (Aprobar/Rechazar/Ver CV)
+          // Requests management (approve/reject/view CV)
           { name: 'Solicitudes', path: '/admin/solicitudes', icon: Users },
-
-          // 2. REPORTE (Excel/Calendario)
+          // Reports (Excel/Calendar)
           { name: 'Postulantes', path: '/admin/postulantes', icon: UserCheck },
-
-          // 3. OFERTAS (Crear/Editar/Borrar)
+          // Opportunities management (create/edit/delete)
           { name: 'Ofertas', path: '/admin/ofertas', icon: Briefcase },
-
-          // 👇 4. ¡AQUÍ ESTÁ LA LÍNEA QUE FALTABA!
           { name: 'Mi Perfil', path: '/perfil', icon: User },
         ]
       : [
-          // Links de Estudiante
+          // Student navigation links
           { name: 'Inicio', path: '/dashboard', icon: LayoutDashboard },
           { name: 'Prácticas', path: '/practicas', icon: Briefcase },
           { name: 'Vinculación', path: '/vinculacion', icon: HeartHandshake },
@@ -57,7 +52,7 @@ const Navbar = () => {
 
   return (
     <nav className="w-64 h-screen bg-slate-900 text-white fixed left-0 top-0 flex flex-col shadow-xl z-50">
-      {/* LOGO */}
+      {/* Application logo and branding */}
       <div className="p-8 flex items-center gap-3 border-b border-slate-800">
         <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-900/50">
           <GraduationCap size={28} />
@@ -70,7 +65,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* LINKS DE NAVEGACIÓN */}
+      {/* Navigation links section */}
       <div className="flex-1 py-8 px-4 space-y-2 overflow-y-auto">
         {links.map((link) => {
           const isActive = location.pathname === link.path;
@@ -100,7 +95,7 @@ const Navbar = () => {
         })}
       </div>
 
-      {/* FOOTER USUARIO */}
+      {/* User profile and logout section */}
       <div className="p-4 border-t border-slate-800">
         <div className="bg-slate-800 rounded-2xl p-4">
           <div className="flex items-center gap-3 mb-4">

@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Mail, EyeOff, Loader } from 'lucide-react'; // Ajusta los imports si te faltan iconos
+import { Mail, EyeOff, Loader } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
-  // Configuración de React Hook Form
+  // Form validation and management
   const {
     register,
     handleSubmit,
@@ -19,7 +19,7 @@ const Login = () => {
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // --- FUNCIÓN DE SUBMIT CORREGIDA ---
+  // Handle login form submission
   const onSubmit = async (data) => {
     setLoading(true);
     setApiError('');
@@ -27,14 +27,14 @@ const Login = () => {
     const res = await login(data.email, data.password);
 
     if (res.success) {
-      navigate('/dashboard'); // ✅ AHORA SÍ FUNCIONA PARA TODOS
+      navigate('/dashboard');
     } else {
       setApiError(res.error || 'Credenciales incorrectas');
       setLoading(false);
     }
   };
 
-  // --- GOOGLE LOGIN CORREGIDO ---
+  // Handle Google authentication response
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
     const res = await googleLogin(credentialResponse.credential);
@@ -50,7 +50,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center font-sans overflow-hidden">
-      {/* 1. FONDO */}
+      {/* Background image */}
       <div className="absolute inset-0 z-0">
         <img
           src="/teatro-uce.jpg"
@@ -60,14 +60,14 @@ const Login = () => {
         <div className="absolute inset-0 bg-black/75"></div>
       </div>
 
-      {/* 2. LOGO UCE */}
+      {/* UCE logo */}
       <div className="absolute top-10 left-10 z-10">
         <div className="text-white font-serif italic text-4xl font-light border-2 border-white rounded-full w-14 h-14 flex items-center justify-center">
           Uce
         </div>
       </div>
 
-      {/* 3. TÍTULO */}
+      {/* Page title */}
       <div className="relative z-10 text-center text-white mb-8">
         <h1 className="text-4xl font-bold tracking-tight">SIIU</h1>
         <p className="text-xs font-medium tracking-[0.4em] uppercase opacity-80">
@@ -75,20 +75,20 @@ const Login = () => {
         </p>
       </div>
 
-      {/* 4. TARJETA DE LOGIN */}
+      {/* Login form card */}
       <div className="relative z-20 w-full max-w-[420px] bg-[#1e2329] p-10 rounded-[2rem] shadow-2xl border border-white/5">
         <h2 className="text-2xl text-white font-semibold text-center mb-8">
           Sign in
         </h2>
 
-        {/* ERROR API */}
+        {/* API error message */}
         {apiError && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-xl text-red-200 text-xs text-center font-bold">
             {apiError}
           </div>
         )}
 
-        {/* FORMULARIO */}
+        {/* Login form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Email */}
           <div className="space-y-1">
@@ -162,7 +162,7 @@ const Login = () => {
         </form>
       </div>
 
-      {/* 5. GOOGLE LOGIN */}
+      {/* Google OAuth authentication */}
       <div className="relative z-20 w-full max-w-[420px] mt-8 text-center">
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 border-t border-gray-700"></div>

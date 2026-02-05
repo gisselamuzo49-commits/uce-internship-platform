@@ -11,10 +11,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+// Centralized API URL import
+import { API_URL } from '../../config/api';
+
 const Postulantes = () => {
   const { authFetch } = useAuth();
 
-  // --- CORRECCIÓN 1: OBTENER FECHA LOCAL CORRECTA ---
+  // Get correct local date
   const getLocalDate = () => {
     const d = new Date();
     const offset = d.getTimezoneOffset() * 60000;
@@ -26,19 +29,17 @@ const Postulantes = () => {
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // --- 1. CARGAR DATOS DEL BACKEND ---
+  // Fetch daily report from backend
   const fetchReport = async () => {
     setLoading(true);
     try {
-      // Asegúrate de que tu backend (puerto 5001) esté corriendo y la ruta sea correcta
       const res = await authFetch(
-        `http://localhost:5001/api/admin/daily-report?date=${selectedDate}`
+        `${API_URL}/api/admin/daily-report?date=${selectedDate}`
       );
 
       if (res.ok) {
         const data = await res.json();
         setReportData(data);
-        // Console log para depurar si llegan datos
         console.log('Datos recibidos para la fecha', selectedDate, ':', data);
       } else {
         console.error('Error en respuesta del servidor:', res.status);
@@ -55,7 +56,7 @@ const Postulantes = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
-  // --- 2. FUNCIÓN DESCARGAR EXCEL ---
+  // Download report as Excel file
   const downloadExcel = () => {
     if (reportData.length === 0) return;
 
@@ -78,7 +79,7 @@ const Postulantes = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8 min-h-screen">
-      {/* HEADER */}
+      {/* Page header with title and controls */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase flex items-center gap-3">
@@ -90,7 +91,7 @@ const Postulantes = () => {
           </p>
         </div>
 
-        {/* CONTROLES */}
+        {/* Date picker and export button */}
         <div className="flex gap-3 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
           <div className="relative">
             <Calendar
@@ -119,7 +120,7 @@ const Postulantes = () => {
         </div>
       </div>
 
-      {/* TABLA DE VISUALIZACIÓN */}
+      {/* Report data table */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
         {loading ? (
           <div className="p-12 text-center text-slate-400 animate-pulse">

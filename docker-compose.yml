@@ -1,53 +1,28 @@
 version: '3.8'
 
 services:
-  # 1. BASE DE DATOS (PostgreSQL Real)
-  postgres_db:
-    image: postgres:15-alpine
-    container_name: uce_postgres
-    environment:
-      POSTGRES_USER: uce_user
-      POSTGRES_PASSWORD: uce_password
-      POSTGRES_DB: uce_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data # Persistencia de datos
-    networks:
-      - uce-net
-
-  # 2. BACKEND (Tu Python Flask)
   backend:
-    build: ./backend
+    image: gdmuzo/uce-backend:v1  
     container_name: uce_backend
     ports:
       - "5001:5000"
     environment:
-      - FLASK_ENV=development
-    depends_on:
-      - postgres_db # Espera a que la BD inicie
-    volumes:
-      - ./backend:/code
-    networks:
-      - uce-net
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://postgres.nkscijfcukvjmyjjddzc:UceProyectoFinal@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+      - SECRET_KEY=clave_secreta_prod
 
-  # 3. FRONTEND (Tu React Vite)
-  fronted:
-    build: ./fronted
-    container_name: uce_fronted
+      - R2_BUCKET_NAME=uce-uploads
+      - R2_ENDPOINT_URL=https://7f6607d99e7358a8dffb8282e5082fe6.r2.cloudflarestorage.com
+      - R2_ACCESS_KEY_ID=de89fc678e686df9ab75e2adb090e867
+      - R2_SECRET_ACCESS_KEY=1089c5b701a27f88dc04045bfb68db1224fc5f0d684d9361660d1373503b8772
+
+    command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 2 --timeout 120 main:app
+
+  frontend:
+    image: gdmuzo/uce-frontend:v1
+    container_name: uce_frontend
     ports:
       - "5173:5173"
-    volumes:
-      - ./fronted:/app
-      - /app/node_modules # Truco para no borrar librerías internas
     environment:
-      - VITE_API_URL=http://localhost:5001
-    networks:
-      - uce-net
-
-volumes:
-  postgres_data:
-
-networks:
-  uce-net:
-    driver: bridge
+      - VITE_API_URL=http://100.49.76.19:5001
+    command: npm run dev -- --host

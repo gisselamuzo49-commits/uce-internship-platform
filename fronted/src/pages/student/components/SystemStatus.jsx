@@ -9,7 +9,7 @@ const SystemStatus = () => {
       </h2>
 
       <div className="space-y-6">
-        {/* Métrica 1: Base de Datos */}
+        {/* Database connection metric */}
         <div>
           <div className="flex justify-between text-sm font-bold text-slate-700 mb-2">
             <span className="flex items-center gap-2">
@@ -22,7 +22,7 @@ const SystemStatus = () => {
           </div>
         </div>
 
-        {/* Métrica 2: Capacidad */}
+        {/* Bandwidth metric */}
         <div>
           <div className="flex justify-between text-sm font-bold text-slate-700 mb-2">
             <span className="flex items-center gap-2">
@@ -35,7 +35,7 @@ const SystemStatus = () => {
           </div>
         </div>
 
-        {/* Métrica 3: Usuarios */}
+        {/* Active users metric */}
         <div>
           <div className="flex justify-between text-sm font-bold text-slate-700 mb-2">
             <span className="flex items-center gap-2">
@@ -48,7 +48,7 @@ const SystemStatus = () => {
           </div>
         </div>
 
-        {/* Resumen */}
+        {/* System summary */}
         <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
           <p className="text-xs text-slate-500 text-center">
             El sistema SIIU está operando correctamente v1.0.2

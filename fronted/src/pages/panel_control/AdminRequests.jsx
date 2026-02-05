@@ -17,26 +17,27 @@ import {
   X,
   Mail,
   AlertTriangle,
-  Upload, // Icono para subir
-  Paperclip, // Icono decorativo
+  Upload,
+  Paperclip,
 } from 'lucide-react';
+
+// Centralized API URL import
+import { API_URL } from '../../config/api';
 
 const AdminRequests = () => {
   const { authFetch } = useAuth();
   const queryClient = useQueryClient();
 
-  // --- ESTADOS ---
+  // Component state
   const [activeTab, setActiveTab] = useState('applications');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
-  // Estado del Modal
+  // Modal state for viewing student profile
   const [viewingStudentId, setViewingStudentId] = useState(null);
   const [basicStudentInfo, setBasicStudentInfo] = useState(null);
 
-  // --- 1. CARGAR DATOS ---
-
-  // A. Postulaciones
+  // Fetch applications
   const {
     data: applications,
     isLoading: loadingApps,
@@ -44,15 +45,14 @@ const AdminRequests = () => {
   } = useQuery({
     queryKey: ['admin-applications'],
     queryFn: async () => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-      const res = await authFetch(`${baseUrl}/api/admin/applications`);
+      const res = await authFetch(`${API_URL}/api/admin/applications`);
       if (!res.ok) throw new Error('Error al cargar postulaciones');
       return res.json();
     },
     retry: 1,
   });
 
-  // B. Tutorías
+  // Fetch tutor requests
   const {
     data: tutorRequests,
     isLoading: loadingTutor,
@@ -60,22 +60,20 @@ const AdminRequests = () => {
   } = useQuery({
     queryKey: ['admin-tutor-requests'],
     queryFn: async () => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-      const res = await authFetch(`${baseUrl}/api/admin/tutor-requests`);
+      const res = await authFetch(`${API_URL}/api/admin/tutor-requests`);
       if (!res.ok) throw new Error('Error al cargar solicitudes de tutor');
       return res.json();
     },
     retry: 1,
   });
 
-  // C. Perfil Completo
+  // Fetch full student profile
   const { data: fullProfile, isLoading: loadingProfile } = useQuery({
     queryKey: ['student-profile', viewingStudentId],
     queryFn: async () => {
       if (!viewingStudentId) return null;
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
       const res = await authFetch(
-        `${baseUrl}/api/admin/students/${viewingStudentId}`
+        `${API_URL}/api/admin/students/${viewingStudentId}`
       );
       if (!res.ok) throw new Error('No se pudo cargar el perfil detallado');
       return res.json();
@@ -83,21 +81,20 @@ const AdminRequests = () => {
     enabled: !!viewingStudentId,
   });
 
-  // --- 2. LOGICA DE SUBIDA DE MEMO (ESTO ES LO QUE TE FALTABA) ---
+  // Upload memo/support document mutation
   const uploadMemoMutation = useMutation({
     mutationFn: async ({ id, file }) => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
       const formData = new FormData();
       formData.append('file', file);
 
-      // Obtenemos token manualmente para usar fetch puro (necesario para archivos)
+      // Obtenemos token manualmente para usar fetch puro
       const token = localStorage.getItem('token');
 
       const res = await fetch(
-        `${baseUrl}/api/admin/tutor-requests/${id}/upload-memo`,
+        `${API_URL}/api/admin/tutor-requests/${id}/upload-memo`,
         {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` }, // NO poner Content-Type
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         }
       );
@@ -114,7 +111,6 @@ const AdminRequests = () => {
     },
   });
 
-  // 👇 ESTA FUNCIÓN ES LA QUE DABA EL ERROR "NOT DEFINED" 👇
   const handleFileChange = (e, reqId) => {
     const file = e.target.files[0];
     if (file) {
@@ -122,12 +118,11 @@ const AdminRequests = () => {
         alert('Solo se permiten archivos PDF');
         return;
       }
-      // Llamamos a la mutación para subir
       uploadMemoMutation.mutate({ id: reqId, file });
     }
   };
 
-  // --- 3. GENERADOR DE CV (PDF) ---
+  // Generate student CV as PDF
   const generateStudentCV = (profileData, fallbackData) => {
     const student = {
       name: fallbackData?.name || profileData?.name || 'Estudiante',
@@ -214,15 +209,14 @@ const AdminRequests = () => {
     doc.save(`CV_${student.name.replace(/\s+/g, '_')}.pdf`);
   };
 
-  // --- 4. MUTACIONES Y HANDLERS DE ESTADO ---
+  // Update application or request status
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, type, status, tutor_name, tutor_email }) => {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
       const body = { status };
       if (tutor_name) body.tutor_name = tutor_name;
       if (tutor_email) body.tutor_email = tutor_email;
 
-      const res = await authFetch(`${baseUrl}/api/admin/${type}/${id}/status`, {
+      const res = await authFetch(`${API_URL}/api/admin/${type}/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -260,7 +254,10 @@ const AdminRequests = () => {
     const id = item.student_id || item.user_id;
     if (!id) return alert('Error: No se encontró el ID del estudiante.');
     setViewingStudentId(id);
-    setBasicStudentInfo({ name: item.student_name, email: item.student_email });
+    setBasicStudentInfo({
+      name: item.student_name,
+      email: item.student_email,
+    });
   };
 
   const handleCloseProfile = () => {
@@ -289,8 +286,7 @@ const AdminRequests = () => {
     );
   };
 
-  // --- RENDERIZADO ---
-
+  // Display loading state
   if (loadingApps || loadingTutor) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-slate-50">
@@ -344,7 +340,7 @@ const AdminRequests = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-8 min-h-screen">
-      {/* HEADER */}
+      {/* Page header with search */}
       <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900">Solicitudes</h1>
@@ -361,7 +357,7 @@ const AdminRequests = () => {
         </div>
       </div>
 
-      {/* TABS */}
+      {/* Tab navigation */}
       <div className="flex gap-6 border-b border-slate-200 mb-6">
         <button
           onClick={() => setActiveTab('applications')}
@@ -377,7 +373,7 @@ const AdminRequests = () => {
         </button>
       </div>
 
-      {/* --- TAB 1: POSTULACIONES --- */}
+      {/* Applications tab */}
       {activeTab === 'applications' && (
         <>
           <div className="flex items-center gap-3 mb-4 bg-slate-50 p-3 rounded-lg w-fit border border-slate-200">
@@ -486,7 +482,7 @@ const AdminRequests = () => {
         </>
       )}
 
-      {/* --- TAB 2: TUTORES (FORMALIZACIÓN) --- */}
+      {/* Tutor formalization tab */}
       {activeTab === 'tutor' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <table className="w-full text-left border-collapse">
@@ -495,7 +491,7 @@ const AdminRequests = () => {
                 <th className="p-4">Estudiante</th>
                 <th className="p-4">Solicitud</th>
                 <th className="p-4">Tutor Asignado</th>
-                <th className="p-4">Memo/Aval</th> {/* NUEVA COLUMNA */}
+                <th className="p-4">Memo/Aval</th>
                 <th className="p-4">Estado</th>
                 <th className="p-4 text-right">Acciones</th>
               </tr>
@@ -529,7 +525,7 @@ const AdminRequests = () => {
                             {req.title}
                           </span>
                           <a
-                            href={`http://localhost:5001/api/uploads/${req.filename}`}
+                            href={`${API_URL}/api/uploads/${req.filename}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1 font-bold"
@@ -564,12 +560,12 @@ const AdminRequests = () => {
                       )}
                     </td>
 
-                    {/* NUEVA CELDA: SUBIR MEMO */}
+                    {/* Memo upload and view */}
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         {req.memo_filename ? (
                           <a
-                            href={`http://localhost:5001/api/uploads/${req.memo_filename}`}
+                            href={`${API_URL}/api/uploads/${req.memo_filename}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-100"
@@ -637,7 +633,7 @@ const AdminRequests = () => {
         </div>
       )}
 
-      {/* --- MODAL DE PERFIL --- */}
+      {/* Student profile modal */}
       {viewingStudentId && (
         <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex justify-center items-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
