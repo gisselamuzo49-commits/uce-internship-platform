@@ -179,7 +179,7 @@ Output goes to `dist/` folder.
 Build and run with Docker:
 ```bash
 docker build -t uce-frontend:latest .
-docker run -p 5173:5173 uce-frontend:latest
+docker run -p 80:80 uce-frontend:latest
 ```
 
 Or use Docker Compose (recommended):
@@ -353,7 +353,7 @@ docker push gdmuzo/uce-frontend:v10
 3. **Deploy on server:**
 ```bash
 docker pull gdmuzo/uce-frontend:v10
-docker run -d -p 5173:5173 gdmuzo/uce-frontend:v10
+docker run -d -p 80:80 gdmuzo/uce-frontend:v13
 ```
 
 ### Production Checklist

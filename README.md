@@ -155,7 +155,7 @@ docker-compose up -d
 ```
 
 4. **Access the application:**
-- Frontend: http://localhost:5173
+- Frontend: http://localhost
 - Backend API: http://localhost:5001
 
 ### Option 2: Local Development
@@ -236,9 +236,9 @@ services:
       # Add all env vars
 
   frontend:
-    image: gdmuzo/uce-frontend:v10
+    image: gdmuzo/uce-frontend:v13
     ports:
-      - "5173:5173"
+      - "80:80"
 ```
 
 **3. Deploy on server:**
@@ -393,4 +393,4 @@ For questions, issues, or support:
 
 ---
 
-**Built with ❤️ for Universidad Central del Ecuador**
+**Built with for Universidad Central del Ecuador**
