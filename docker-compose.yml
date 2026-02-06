@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: gdmuzo/uce-backend:v2
+    image: gdmuzo/uce-backend:v5
     container_name: uce_backend
     ports:
       - "5001:5000"
@@ -17,10 +17,10 @@ services:
     command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 2 --timeout 120 main:app
 
   frontend:
-    image: gdmuzo/uce-frontend:v4
+    image: gdmuzo/uce-frontend:v13
     container_name: uce_frontend
     ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://100.49.76.19:5001
-    command: npm run dev -- --host
+      - "80:80"
+    # environment:
+    #   - VITE_API_URL=http://100.49.76.19:5001 # Ya está compilado en la imagen, no es necesario aquí.
+    # command: npm run dev -- --host # ELIMINADO: Nginx usa su propio comando por defecto
